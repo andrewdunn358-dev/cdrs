@@ -59,9 +59,14 @@ def _parse_gamma_ff(content, file_type):
             qty = int(row[7]) if len(row) > 7 and row[7].strip().isdigit() else 1
             site_name = row[8].strip() if len(row) > 8 else ''
 
-            charge_type = row[4].strip()  # Rental / Ceased
+            charge_type = row[4].strip()
             if charge_type == 'Ceased':
                 charge_type = 'Credit'
+
+            # For IPDC files, Gamma puts the line total in the cost column
+            # and the channel count in quantity — treat cost as total, qty as 1
+            if file_type == 'gamma_ipdc':
+                qty = 1
 
             records.append({
                 'source_key': row[2].strip(),

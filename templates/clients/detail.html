@@ -43,12 +43,11 @@
         <form method="POST" action="{{ url_for("add_identifier", id=client.id) }}" class="row g-2">
           <div class="col-12">
             <select name="id_type" class="form-select form-select-sm">
-              <option value="nasstar_account">Nasstar Account ID</option>
-              <option value="gamma_ipdc_endpoint">Gamma IPDC Endpoint</option>
+              <option value="nasstar_account">Nasstar Account</option>
+              <option value="gamma_ipdc_endpoint">Gamma SIP Trunk</option>
               <option value="gamma_cli">Gamma CLI</option>
-              <option value="gamma_circuit">Gamma Circuit (BB/WLR)</option>
-              <option value="gamma_ces_circuit">Gamma CES Circuit</option>
-              <option value="gamma_wlr">Gamma WLR</option>
+              <option value="gamma_circuit">Gamma Broadband / WLR</option>
+              <option value="gamma_ces_circuit">Gamma Leased Line</option>
               <option value="gamma_inbound">Gamma Inbound</option>
             </select>
           </div>

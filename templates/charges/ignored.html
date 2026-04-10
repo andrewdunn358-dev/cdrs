@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Ignored Keys{% endblock %}
+{% block page_title %}Ignored Keys{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("charges") }}?unmatched=1" class="btn btn-sm btn-outline-secondary">Back to Unmatched</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white fw-semibold">Ignored Source Keys</div>
+  {% if ignored %}
+  {% for i in ignored %}
+  <div class="d-flex align-items-center px-3 py-2 border-bottom">
+    <div class="flex-grow-1">
+      <span class="fw-bold font-monospace">{{ i.source_key }}</span>
+      {% if i.reason %}<span class="text-muted ms-2 small">{{ i.reason }}</span>{% endif %}
+      <small class="text-muted d-block">Ignored {{ i.ignored_at.strftime("%d %b %Y") }}</small>
+    </div>
+    <form method="POST" action="{{ url_for("charge_unignore") }}">
+      <input type="hidden" name="source_key" value="{{ i.source_key }}">
+      <button class="btn btn-sm btn-outline-primary">Restore</button>
+    </form>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="p-4 text-muted text-center">No ignored keys yet.</div>
+  {% endif %}
+</div>
+{% endblock %}

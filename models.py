@@ -153,3 +153,12 @@ class CompanySettings(db.Model):
     default_markup_pct = db.Column(db.Float, default=30.0)
     default_vat_rate = db.Column(db.Float, default=20.0)
     payment_terms_days = db.Column(db.Integer, default=30)
+
+class IgnoredKey(db.Model):
+    """Source keys that should never appear in unmatched charges."""
+    __tablename__ = 'ignored_keys'
+    id = db.Column(db.Integer, primary_key=True)
+    source_key = db.Column(db.String(200), unique=True, nullable=False)
+    reason = db.Column(db.String(200))
+    ignored_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ignored_by = db.Column(db.Integer, db.ForeignKey('users.id'))

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Unmatched Charges{% endblock %}
+{% block page_title %}Unmatched Charges{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("charges_ignored") }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-slash-circle me-1"></i>View Ignored</a>
+  <a href="{{ url_for("charges") }}" class="btn btn-sm btn-outline-secondary">All Charges</a>
+{% endblock %}
+{% block content %}
+{% if unmatched_count == 0 %}
+<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>All charges are matched — nothing to review.</div>
+{% else %}
+<div class="alert alert-warning d-flex align-items-center gap-2">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <strong>{{ unmatched_count }}</strong> unmatched source key(s). Assign each to a client or ignore it. Tick "Save identifier" to auto-match next month.
+</div>
+
+<div class="card">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+    <span>Unmatched Source Keys</span>
+    <span class="text-muted small">{{ unmatched_count }} unique key(s)</span>
+  </div>
+  {% for row in grouped %}
+  <div class="border-bottom p-3">
+    <div class="row align-items-center g-2">
+      <div class="col-lg-3">
+        <div class="fw-bold font-monospace">{{ row.source_key }}</div>
+        <small class="text-muted">{{ row.file_type }} &middot; {{ row.period }}</small><br>
+        <small class="text-muted">{{ row.sample_product }}</small>
+      </div>
+      <div class="col-lg-1 text-center">
+        <div class="fw-bold fs-5">{{ row.count }}</div>
+        <small class="text-muted">charges</small>
+      </div>
+      <div class="col-lg-2 text-center">
+        <div class="fw-bold">£{{ "%.4f"|format(row.total_cost or 0) }}</div>
+        <small class="text-muted">total cost</small>
+      </div>
+      <div class="col-lg-4">
+        <form method="POST" action="{{ url_for("charge_bulk_assign") }}" class="row g-1">
+          <input type="hidden" name="source_key" value="{{ row.source_key }}">
+          <div class="col-12">
+            <select name="client_id" class="form-select form-select-sm" required>
+              <option value="">Assign to client...</option>
+              {% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-8">
+            <select name="id_type" class="form-select form-select-sm">
+              <option value="nasstar_account">Nasstar Account</option>
+              <option value="gamma_ipdc_endpoint">Gamma SIP Trunk</option>
+              <option value="gamma_cli">Gamma CLI</option>
+              <option value="gamma_circuit">Gamma Broadband / WLR</option>
+              <option value="gamma_ces_circuit">Gamma Leased Line</option>
+              <option value="gamma_inbound">Gamma Inbound</option>
+            </select>
+          </div>
+          <div class="col-4">
+            <button class="btn btn-sm btn-primary w-100">Assign all</button>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="create_identifier" value="1" id="ci_{{ loop.index }}" checked>
+              <label class="form-check-label small" for="ci_{{ loop.index }}">Save identifier (auto-match next month)</label>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="col-lg-2 text-end">
+        <form method="POST" action="{{ url_for("charge_ignore") }}">
+          <input type="hidden" name="source_key" value="{{ row.source_key }}">
+          <button class="btn btn-sm btn-outline-secondary w-100" onclick="return confirm('Ignore all charges for this key?')">
+            <i class="bi bi-slash-circle me-1"></i>Ignore
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

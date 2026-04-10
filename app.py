@@ -262,22 +262,56 @@ def import_delete(id):
 @app.route('/charges')
 @login_required
 def charges():
+    from models import IgnoredKey
+    from sqlalchemy import func
     period = request.args.get('period', '')
     client_id = request.args.get('client_id', '')
     unmatched_only = request.args.get('unmatched', '')
+
+    # Get ignored keys
+    ignored_keys = set(i.source_key for i in IgnoredKey.query.all())
+
+    if unmatched_only:
+        # Group unmatched by source key — one row per unknown identifier
+        grouped = (db.session.query(
+                RawCharge.source_key,
+                func.count(RawCharge.id).label('count'),
+                func.sum(RawCharge.cost_amount * RawCharge.quantity).label('total_cost'),
+                func.min(ImportBatch.billing_period).label('period'),
+                func.min(RawCharge.product_name).label('sample_product'),
+                func.min(ImportBatch.file_type).label('file_type'),
+            )
+            .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
+            .filter(RawCharge.matched == False,
+                    RawCharge.invoiced == False,
+                    ~RawCharge.source_key.in_(ignored_keys) if ignored_keys else True)
+            .group_by(RawCharge.source_key)
+            .order_by(func.count(RawCharge.id).desc())
+            .all())
+
+        clients = Client.query.filter_by(active=True).order_by(Client.name).all()
+        periods = db.session.query(ImportBatch.billing_period).distinct().order_by(ImportBatch.billing_period.desc()).all()
+        unmatched_count = len(grouped)
+
+        return render_template('charges/unmatched.html',
+            grouped=grouped, clients=clients,
+            periods=[p[0] for p in periods if p[0]],
+            unmatched_count=unmatched_count,
+            ignored_keys=ignored_keys)
 
     query = RawCharge.query.join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
     if period:
         query = query.filter(ImportBatch.billing_period == period)
     if client_id:
         query = query.filter(RawCharge.client_id == int(client_id))
-    if unmatched_only:
-        query = query.filter(RawCharge.matched == False, RawCharge.invoiced == False)
 
     charges = query.order_by(RawCharge.id.desc()).limit(500).all()
     periods = db.session.query(ImportBatch.billing_period).distinct().order_by(ImportBatch.billing_period.desc()).all()
     clients = Client.query.filter_by(active=True).order_by(Client.name).all()
-    unmatched_count = RawCharge.query.filter_by(matched=False, invoiced=False).count()
+    unmatched_count = (RawCharge.query
+        .filter(RawCharge.matched == False, RawCharge.invoiced == False,
+                ~RawCharge.source_key.in_(ignored_keys) if ignored_keys else True)
+        .distinct(RawCharge.source_key).count())
 
     return render_template('charges/list.html',
         charges=charges, periods=[p[0] for p in periods if p[0]],
@@ -297,28 +331,61 @@ def charge_assign(id):
         flash('Charge assigned to client.', 'success')
     return redirect(request.referrer or url_for('charges'))
 
+@app.route('/charges/ignore', methods=['POST'])
+@login_required
+def charge_ignore():
+    from models import IgnoredKey
+    source_key = request.form.get('source_key')
+    if source_key:
+        existing = IgnoredKey.query.filter_by(source_key=source_key).first()
+        if not existing:
+            db.session.add(IgnoredKey(
+                source_key=source_key,
+                reason=request.form.get('reason', ''),
+                ignored_by=current_user.id
+            ))
+            db.session.commit()
+        flash(f'"{source_key}" will no longer appear in unmatched charges.', 'success')
+    return redirect(url_for('charges', unmatched='1'))
+
+@app.route('/charges/unignore', methods=['POST'])
+@login_required
+def charge_unignore():
+    from models import IgnoredKey
+    source_key = request.form.get('source_key')
+    IgnoredKey.query.filter_by(source_key=source_key).delete()
+    db.session.commit()
+    flash(f'"{source_key}" restored to unmatched charges.', 'success')
+    return redirect(url_for('charges', unmatched='1'))
+
+@app.route('/charges/ignored')
+@login_required
+def charges_ignored():
+    from models import IgnoredKey
+    ignored = IgnoredKey.query.order_by(IgnoredKey.ignored_at.desc()).all()
+    return render_template('charges/ignored.html', ignored=ignored)
+
 @app.route('/charges/bulk-assign', methods=['POST'])
 @login_required
 def charge_bulk_assign():
-    """Assign all unmatched charges for a source_key to a client."""
     source_key = request.form.get('source_key')
     client_id = int(request.form.get('client_id'))
     create_ident = request.form.get('create_identifier') == '1'
     id_type = request.form.get('id_type', 'gamma_circuit')
 
-    charges = RawCharge.query.filter_by(source_key=source_key, matched=False).all()
-    for c in charges:
-        c.client_id = client_id
-        c.matched = True
+    updated = (RawCharge.query
+               .filter_by(source_key=source_key, matched=False)
+               .update({'client_id': client_id, 'matched': True}))
 
     if create_ident and source_key:
         existing = ClientIdentifier.query.filter_by(id_type=id_type, id_value=source_key).first()
         if not existing:
-            db.session.add(ClientIdentifier(client_id=client_id, id_type=id_type,
-                                             id_value=source_key,
-                                             description=f'Auto-created on bulk assign'))
+            db.session.add(ClientIdentifier(
+                client_id=client_id, id_type=id_type,
+                id_value=source_key,
+                description='Auto-created on bulk assign'))
     db.session.commit()
-    flash(f'Assigned {len(charges)} charges.', 'success')
+    flash(f'Assigned {updated} charges to client.', 'success')
     return redirect(url_for('charges', unmatched='1'))
 
 

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice.invoice_number }}{% endblock %}
+{% block page_title %}Invoice {{ invoice.invoice_number }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("invoice_pdf", id=invoice.id) }}" class="btn btn-sm btn-danger" target="_blank"><i class="bi bi-filetype-pdf me-1"></i>View PDF</a>
+  <a href="{{ url_for("invoice_pdf", id=invoice.id) }}?download=1" class="btn btn-sm btn-outline-danger"><i class="bi bi-download me-1"></i>Download</a>
+  {% if invoice.status != "paid" %}
+  <form method="POST" action="{{ url_for("invoice_status", id=invoice.id) }}" class="d-inline">
+    {% if invoice.status == "draft" %}
+    <input type="hidden" name="status" value="sent">
+    <button class="btn btn-sm btn-primary">Mark Sent</button>
+    {% elif invoice.status == "sent" %}
+    <input type="hidden" name="status" value="paid">
+    <button class="btn btn-sm btn-success">Mark Paid</button>
+    {% endif %}
+  </form>
+  {% endif %}
+  {% if invoice.status == "draft" %}
+  <form method="POST" action="{{ url_for("invoice_delete", id=invoice.id) }}" onsubmit="return confirm("Delete this invoice?")">
+    <button class="btn btn-sm btn-outline-danger">Delete</button>
+  </form>
+  {% endif %}
+{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">Line Items</span>
+        <span class="badge badge-{{ invoice.status }}">{{ invoice.status }}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead><tr><th>Description</th><th>Category</th><th class="text-end">Cost</th><th class="text-end">Price (ex VAT)</th><th class="text-end">VAT</th></tr></thead>
+          <tbody>
+          {% for line in invoice.lines|sort(attribute="sort_order") %}
+          <tr>
+            <td>{{ line.description }}</td>
+            <td><span class="badge bg-light text-dark">{{ line.category }}</span></td>
+            <td class="text-end text-muted small">£{{ "%.4f"|format(line.unit_cost) }}</td>
+            <td class="text-end fw-medium">£{{ "%.2f"|format(line.line_total) }}</td>
+            <td class="text-end text-muted">{{ line.vat_rate }}%</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot class="table-light">
+            <tr><td colspan="3" class="text-end fw-medium">Subtotal (ex VAT)</td><td class="text-end">£{{ "%.2f"|format(invoice.subtotal) }}</td><td></td></tr>
+            <tr><td colspan="3" class="text-end fw-medium">VAT ({{ settings.default_vat_rate }}%)</td><td class="text-end">£{{ "%.2f"|format(invoice.vat_amount) }}</td><td></td></tr>
+            <tr><td colspan="3" class="text-end fw-bold fs-6">Total (inc VAT)</td><td class="text-end fw-bold fs-6">£{{ "%.2f"|format(invoice.total) }}</td><td></td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header bg-white fw-semibold">Invoice Details</div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless mb-0">
+          <tr><th class="ps-0 text-muted">Number</th><td class="fw-medium">{{ invoice.invoice_number }}</td></tr>
+          <tr><th class="ps-0 text-muted">Date</th><td>{{ invoice.invoice_date.strftime("%d %b %Y") }}</td></tr>
+          <tr><th class="ps-0 text-muted">Due Date</th><td>{{ invoice.due_date.strftime("%d %b %Y") if invoice.due_date else "—" }}</td></tr>
+          <tr><th class="ps-0 text-muted">Period</th><td>{{ invoice.billing_period }}</td></tr>
+          <tr><th class="ps-0 text-muted">Status</th><td><span class="badge badge-{{ invoice.status }}">{{ invoice.status }}</span></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Bill To</div>
+      <div class="card-body">
+        <div class="fw-semibold">{{ invoice.client.name }}</div>
+        <div class="text-muted small mt-1">{{ invoice.client.full_address() or "No address" }}</div>
+        {% if invoice.client.vat_number %}<div class="text-muted small">VAT: {{ invoice.client.vat_number }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

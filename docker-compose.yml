@@ -1,0 +1,23 @@
+services:
+  billing:
+    build: .
+    container_name: synthesis-billing
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - billing-data:/data        # SQLite database
+      - billing-uploads:/app/uploads
+    environment:
+      - DATABASE_URL=sqlite:////data/billing.db
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production-use-a-long-random-string}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/login')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  billing-data:
+  billing-uploads:

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Invoices{% endblock %}
+{% block page_title %}Invoices{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("invoice_generate") }}" class="btn btn-sm btn-success"><i class="bi bi-lightning me-1"></i>Generate</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white">
+    <form class="d-flex gap-2 flex-wrap" method="GET">
+      <select name="period" class="form-select form-select-sm" style="width:140px">
+        <option value="">All periods</option>
+        {% for p in periods %}<option value="{{ p }}" {% if p==selected_period %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+      <select name="status" class="form-select form-select-sm" style="width:130px">
+        <option value="">All statuses</option>
+        <option value="draft" {% if selected_status=="draft" %}selected{% endif %}>Draft</option>
+        <option value="sent" {% if selected_status=="sent" %}selected{% endif %}>Sent</option>
+        <option value="paid" {% if selected_status=="paid" %}selected{% endif %}>Paid</option>
+      </select>
+      <button class="btn btn-sm btn-outline-secondary">Filter</button>
+      <span class="ms-auto my-auto text-muted small">{{ invoices|length }} invoice(s)</span>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>Invoice No</th><th>Client</th><th>Period</th><th>Date</th><th>Due</th><th class="text-end">Total</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td class="fw-medium">{{ inv.invoice_number }}</td>
+        <td>{{ inv.client.name }}</td>
+        <td>{{ inv.billing_period }}</td>
+        <td>{{ inv.invoice_date.strftime("%d %b %Y") }}</td>
+        <td class="{% if inv.due_date and inv.due_date < today and inv.status != "paid" %}text-danger{% endif %}">{{ inv.due_date.strftime("%d %b %Y") if inv.due_date else "—" }}</td>
+        <td class="text-end fw-semibold">£{{ "%.2f"|format(inv.total) }}</td>
+        <td><span class="badge badge-{{ inv.status }}">{{ inv.status }}</span></td>
+        <td class="d-flex gap-1">
+          <a href="{{ url_for("invoice_detail", id=inv.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
+          <a href="{{ url_for("invoice_pdf", id=inv.id) }}" class="btn btn-sm btn-outline-danger" target="_blank"><i class="bi bi-filetype-pdf"></i></a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-muted text-center py-4">No invoices found</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

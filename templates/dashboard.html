@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for('import_upload') }}" class="btn btn-sm btn-primary"><i class="bi bi-upload me-1"></i>Import Files</a>
+  <a href="{{ url_for('invoice_generate') }}" class="btn btn-sm btn-success"><i class="bi bi-lightning me-1"></i>Generate Invoices</a>
+{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="stat-card">
+      <div class="num">{{ total_clients }}</div>
+      <div class="lbl">Active Clients</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="stat-card">
+      <div class="num">{{ total_invoices }}</div>
+      <div class="lbl">Total Invoices</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="stat-card">
+      <div class="num text-success">£{{ "%.2f"|format(unpaid_total) }}</div>
+      <div class="lbl">Outstanding</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="stat-card">
+      <div class="num {% if unmatched > 0 %}text-warning{% endif %}">{{ unmatched }}</div>
+      <div class="lbl">Unmatched Charges</div>
+      {% if unmatched > 0 %}
+      <a href="{{ url_for('charges') }}?unmatched=1" class="small text-warning">Review →</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Recent Invoices</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Invoice</th><th>Client</th><th>Period</th><th>Total</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for inv in recent_invoices %}
+          <tr onclick="location.href='{{ url_for('invoice_detail', id=inv.id) }}'" style="cursor:pointer">
+            <td class="fw-medium">{{ inv.invoice_number }}</td>
+            <td>{{ inv.client.name }}</td>
+            <td>{{ inv.billing_period }}</td>
+            <td>£{{ "%.2f"|format(inv.total) }}</td>
+            <td><span class="badge badge-{{ inv.status }}">{{ inv.status }}</span></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-muted text-center py-3">No invoices yet</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Recent Imports</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>File</th><th>Type</th><th>Records</th><th>Matched</th><th>Date</th></tr></thead>
+          <tbody>
+          {% for b in recent_imports %}
+          <tr>
+            <td class="text-truncate" style="max-width:160px" title="{{ b.filename }}">{{ b.filename }}</td>
+            <td><span class="badge bg-secondary">{{ b.file_type }}</span></td>
+            <td>{{ b.record_count }}</td>
+            <td>{% if b.matched_count == b.record_count %}<span class="text-success">{{ b.matched_count }}</span>{% else %}<span class="text-warning">{{ b.matched_count }}/{{ b.record_count }}</span>{% endif %}</td>
+            <td class="text-muted">{{ b.imported_at.strftime('%d %b %H:%M') }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-muted text-center py-3">No imports yet</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

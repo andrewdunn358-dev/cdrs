@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Generate Invoices{% endblock %}
+{% block page_title %}Generate Invoices{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-6">
+<div class="card p-4">
+  <h6 class="fw-semibold mb-3">Generate invoices for a billing period</h6>
+  <form method="POST">
+    <div class="mb-3">
+      <label class="form-label fw-medium">Billing Period *</label>
+      <select name="billing_period" class="form-select" required>
+        <option value="">Select period…</option>
+        {% for p in periods %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+      </select>
+      <div class="form-text">Only periods with imported files will appear</div>
+    </div>
+    <div class="mb-4">
+      <label class="form-label fw-medium">Clients</label>
+      <select name="client_ids" class="form-select" multiple size="8">
+        {% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+      <div class="form-text">Leave blank to generate for all clients with matched charges in the selected period</div>
+    </div>
+    <button type="submit" class="btn btn-success"><i class="bi bi-lightning me-1"></i>Generate Invoices</button>
+    <a href="{{ url_for("invoices") }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+  </form>
+</div>
+</div></div>
+{% endblock %}

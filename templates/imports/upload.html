@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Import Files{% endblock %}
+{% block page_title %}Import Files{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-7">
+<div class="card p-4">
+  <h6 class="fw-semibold mb-1">Upload Billing Files</h6>
+  <p class="text-muted small mb-3">Upload Gamma FF files (BB, CES, IPDC, WLR, INB), Gamma Call CDRs (*_V3.txt), or Nasstar CDR files (.CDR). Multiple files can be uploaded at once.</p>
+  <form method="POST" enctype="multipart/form-data">
+    <div class="mb-3">
+      <label class="form-label fw-medium">Select files</label>
+      <input type="file" name="files" class="form-control" multiple accept=".txt,.csv,.CDR,.cdr" required>
+      <div class="form-text">Supported: *BB.txt, *CESFF.txt, *IPDCFF.txt, *WLRFF.txt, *INBFF.txt, *_SIP_V3.txt, *_DIV_V3.txt, *_FTC_V3.txt, *_IBRS_V3.txt, *_NTS_V3.txt, *.CDR</div>
+    </div>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-upload me-1"></i>Import Files</button>
+    <a href="{{ url_for("imports") }}" class="btn btn-outline-secondary ms-2">View History</a>
+  </form>
+</div>
+</div></div>
+{% endblock %}

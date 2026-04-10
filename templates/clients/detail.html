@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}{{ client.name }}{% endblock %}
+{% block page_title %}{{ client.name }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("client_edit", id=client.id) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header bg-white fw-semibold">Account Details</div>
+      <div class="card-body">
+        <table class="table table-sm table-borderless mb-0">
+          <tr><th class="text-muted ps-0" style="width:42%">Account Ref</th><td>{{ client.account_ref or "—" }}</td></tr>
+          <tr><th class="text-muted ps-0">Address</th><td>{{ client.full_address() or "—" }}</td></tr>
+          <tr><th class="text-muted ps-0">Contact</th><td>{{ client.contact_name or "—" }}</td></tr>
+          <tr><th class="text-muted ps-0">Email</th><td>{{ client.contact_email or "—" }}</td></tr>
+          <tr><th class="text-muted ps-0">VAT No</th><td>{{ client.vat_number or "—" }}</td></tr>
+          <tr><th class="text-muted ps-0">Markup</th><td>{{ client.markup_pct }}%</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+        Billing Identifiers <span class="badge bg-secondary">{{ client.identifiers|length }}</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for ident in client.identifiers %}
+        <div class="list-group-item d-flex align-items-center py-2">
+          <div class="flex-grow-1">
+            <div class="fw-medium" style="font-size:.82rem">{{ ident.id_value }}</div>
+            <small class="text-muted">{{ ident.id_type }}{% if ident.description %} · {{ ident.description }}{% endif %}</small>
+          </div>
+          <form method="POST" action="{{ url_for("delete_identifier", id=ident.id) }}" onsubmit="return confirm("Remove this identifier?")">
+            <button class="btn btn-sm btn-link text-danger p-0"><i class="bi bi-trash"></i></button>
+          </form>
+        </div>
+        {% else %}
+        <div class="list-group-item text-muted text-center py-3" style="font-size:.82rem">No identifiers yet</div>
+        {% endfor %}
+      </div>
+      <div class="card-footer bg-white">
+        <form method="POST" action="{{ url_for("add_identifier", id=client.id) }}" class="row g-2">
+          <div class="col-12">
+            <select name="id_type" class="form-select form-select-sm">
+              <option value="nasstar_account">Nasstar Account ID</option>
+              <option value="gamma_ipdc_endpoint">Gamma IPDC Endpoint</option>
+              <option value="gamma_cli">Gamma CLI</option>
+              <option value="gamma_circuit">Gamma Circuit (BB/WLR)</option>
+              <option value="gamma_ces_circuit">Gamma CES Circuit</option>
+              <option value="gamma_wlr">Gamma WLR</option>
+              <option value="gamma_inbound">Gamma Inbound</option>
+            </select>
+          </div>
+          <div class="col-8"><input name="id_value" class="form-control form-control-sm" placeholder="Value" required></div>
+          <div class="col-4"><button class="btn btn-sm btn-primary w-100">Add</button></div>
+          <div class="col-12"><input name="description" class="form-control form-control-sm" placeholder="Description (optional)"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header bg-white fw-semibold">Pending Charges</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead><tr><th>Period</th><th>Source Key</th><th>Product</th><th>Type</th><th class="text-end">Cost</th><th class="text-end">Sell</th></tr></thead>
+          <tbody>
+          {% for c in charges %}
+          <tr>
+            <td>{{ c.billing_period }}</td>
+            <td class="text-muted" style="font-size:.73rem">{{ c.source_key }}</td>
+            <td style="font-size:.82rem">{{ (c.product_name or "—")[:45] }}</td>
+            <td><span class="badge bg-light text-dark">{{ c.charge_type }}</span></td>
+            <td class="text-end">£{{ "%.4f"|format(c.cost_amount * c.quantity) }}</td>
+            <td class="text-end fw-medium">£{{ "%.2f"|format(c.cost_amount * c.quantity * (1 + client.markup_pct/100)) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-muted text-center py-3">No pending charges</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Invoices</div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Invoice</th><th>Date</th><th>Period</th><th>Total</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+          {% for inv in invoices %}
+          <tr>
+            <td class="fw-medium">{{ inv.invoice_number }}</td>
+            <td>{{ inv.invoice_date.strftime("%d %b %Y") }}</td>
+            <td>{{ inv.billing_period }}</td>
+            <td>£{{ "%.2f"|format(inv.total) }}</td>
+            <td><span class="badge badge-{{ inv.status }}">{{ inv.status }}</span></td>
+            <td class="d-flex gap-1">
+              <a href="{{ url_for("invoice_detail", id=inv.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
+              <a href="{{ url_for("invoice_pdf", id=inv.id) }}" class="btn btn-sm btn-outline-danger" target="_blank"><i class="bi bi-filetype-pdf"></i></a>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-muted text-center py-3">No invoices yet</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

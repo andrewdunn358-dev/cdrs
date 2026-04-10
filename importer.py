@@ -1,0 +1,269 @@
+"""
+Handles parsing of all supplier file formats:
+  Gamma fixed charge files: BB, CES, IPDC, WLR, INB
+  Gamma call CDR files:     SIP, DIV, FTC, IBRS, NTS  (_V3.txt)
+  Nasstar CDR files:        .CDR
+"""
+import csv, json, re
+from datetime import datetime, date
+from io import StringIO
+
+# ── file type detection ──────────────────────────────────────────────────────
+
+def detect_file_type(filename, content_preview):
+    """Return file_type string based on filename pattern."""
+    fn = filename.upper()
+    if fn.endswith('.CDR'):
+        return 'nasstar_cdr'
+    if 'BB.TXT' in fn or fn.endswith('BBFF.TXT') or '_BB' in fn:
+        return 'gamma_bb'
+    if 'CESFF' in fn or '_CES' in fn:
+        return 'gamma_ces'
+    if 'IPDCFF' in fn or '_IPDC' in fn:
+        return 'gamma_ipdc'
+    if 'WLRFF' in fn or '_WLR' in fn:
+        return 'gamma_wlr'
+    if 'INBFF' in fn or '_INB' in fn:
+        return 'gamma_inb'
+    if '_SIP_V3' in fn:
+        return 'gamma_calls_sip'
+    if '_DIV_V3' in fn:
+        return 'gamma_calls_div'
+    if '_FTC_V3' in fn:
+        return 'gamma_calls_ftc'
+    if '_IBRS_V3' in fn:
+        return 'gamma_calls_ibrs'
+    if '_NTS_V3' in fn:
+        return 'gamma_calls_nts'
+    return 'unknown'
+
+
+# ── Gamma fixed charge files ─────────────────────────────────────────────────
+# All share the same CSV format (no header row):
+# BB/WLR/INB: connection_date, billing_period, circuit_id, product, charge_type, cost, credit, qty
+# CES:        same + site_name at end
+# IPDC:       same as BB
+
+def _parse_gamma_ff(content, file_type):
+    """Parse all Gamma FF flat-file formats into RawCharge dicts."""
+    records = []
+    reader = csv.reader(StringIO(content))
+    for row in reader:
+        if not row or not any(c.strip() for c in row):
+            continue
+        if len(row) < 7:
+            continue
+        try:
+            cost = float(row[5]) if row[5] else 0.0
+            credit = float(row[6]) if row[6] else 0.0
+            qty = int(row[7]) if len(row) > 7 and row[7].strip().isdigit() else 1
+            site_name = row[8].strip() if len(row) > 8 else ''
+
+            charge_type = row[4].strip()  # Rental / Ceased
+            if charge_type == 'Ceased':
+                charge_type = 'Credit'
+
+            records.append({
+                'source_key': row[2].strip(),
+                'product_name': row[3].strip(),
+                'charge_type': charge_type,
+                'billing_period': _parse_billing_period(row[1].strip()),
+                'cost_amount': cost,
+                'credit_amount': abs(credit),
+                'quantity': qty,
+                'site_name': site_name,
+                'description': f"{row[3].strip()} — {row[2].strip()}",
+                'raw_json': json.dumps(row),
+            })
+        except (ValueError, IndexError):
+            continue
+    return records
+
+
+def _parse_billing_period(text):
+    """Convert 'March 2026' or 'February 2026' to '2026-03'."""
+    months = {'january':'01','february':'02','march':'03','april':'04',
+              'may':'05','june':'06','july':'07','august':'08',
+              'september':'09','october':'10','november':'11','december':'12'}
+    parts = text.lower().split()
+    if len(parts) == 2:
+        m = months.get(parts[0])
+        y = parts[1]
+        if m and y:
+            return f"{y}-{m}"
+    return text
+
+
+# ── Gamma call CDR files (_V3.txt) ───────────────────────────────────────────
+# Header row present.
+# Key cols: 2=customer_id, 3=destination, 4=call_date, 5=call_time,
+#           6=duration, 10=chargecode, 11=timeband, 12=salesprice,
+#           15=ddi, 26=diverted_number
+
+def _parse_gamma_calls(content, file_type):
+    records = []
+    reader = csv.reader(StringIO(content))
+    headers = None
+    for row in reader:
+        if headers is None:
+            headers = row
+            continue
+        if not row or len(row) < 13:
+            continue
+        try:
+            duration = int(float(row[6])) if row[6] else 0
+            cost = float(row[12]) if row[12] else 0.0
+            call_date = None
+            try:
+                call_date = datetime.strptime(row[4].strip(), '%d/%m/%Y').date()
+            except Exception:
+                pass
+
+            # source_key: endpoint ID for SIP, CLI for others
+            source_key = row[2].strip().lstrip('+')
+            # also strip leading + from CLIs to normalise
+            if source_key.startswith('44'):
+                source_key = '0' + source_key[2:]
+
+            dest = row[3].strip()
+            desc = row[9].strip() if len(row) > 9 else ''
+
+            records.append({
+                'source_key': source_key,
+                'product_name': f"Call — {desc}" if desc else f"Call — {row[10].strip() if len(row)>10 else ''}",
+                'charge_type': 'Call',
+                'billing_period': '',  # derived from call dates on grouping
+                'call_date': call_date,
+                'call_duration': duration,
+                'destination': dest,
+                'description': f"{desc} to {dest} ({row[6]}s)" if dest else f"Call {duration}s",
+                'cost_amount': cost,
+                'credit_amount': 0.0,
+                'quantity': 1,
+                'site_name': '',
+                'raw_json': json.dumps(row),
+            })
+        except (ValueError, IndexError):
+            continue
+    return records
+
+
+# ── Nasstar CDR files ────────────────────────────────────────────────────────
+# Line 0: HEADER,{account_id}
+# Data rows: switch_node, cli, datetime, destination, duration, dest_type, cost, cli_prefix, direction, rate_band, ...
+# Last line: TRAILER,{count}
+# Paired files: direction I = cost-bearing leg; direction O paired file has cost=0
+
+def _parse_nasstar_cdr(content, filename):
+    records = []
+    lines = content.splitlines()
+    if not lines:
+        return records
+
+    account_id = ''
+    if lines[0].startswith('HEADER,'):
+        account_id = lines[0].split(',')[1].strip()
+
+    for line in lines[1:]:
+        line = line.strip()
+        if not line or line.startswith('TRAILER') or line.startswith('HEADER'):
+            continue
+        parts = line.split(',')
+        if len(parts) < 9:
+            continue
+        try:
+            cost = float(parts[6]) if parts[6] else 0.0
+            duration = int(float(parts[4])) if parts[4] else 0
+            direction = parts[8].strip()
+
+            # Skip outbound legs of paired files (cost is always on the I leg)
+            # But include if this is a standalone outbound-only file (no paired I file)
+            # We detect this by checking if cost > 0 OR direction is O (single-leg format)
+            if direction == 'I' and cost == 0.0:
+                continue  # empty inbound legs
+
+            call_dt = None
+            try:
+                call_dt = datetime.strptime(parts[2].strip(), '%d/%m/%y %H:%M:%S').date()
+            except Exception:
+                pass
+
+            dest_type = parts[5].strip() if len(parts) > 5 else ''
+            desc_map = {
+                'UKGEO': 'UK Geographic', 'UKN': 'UK National',
+                'UKNFM1': 'UK Mobile (O2)', 'UKNFM3': 'UK Mobile (T-Mobile)',
+                'UKNFM5': 'UK Mobile (Vodafone)', 'UKNFM6': 'UK Mobile (3)',
+                '03UK': 'UK 03 Number', 'NAT': 'National',
+            }
+            description = desc_map.get(dest_type, dest_type)
+
+            records.append({
+                'source_key': account_id,
+                'product_name': f"Call — {description}",
+                'charge_type': 'Call',
+                'billing_period': '',
+                'call_date': call_dt,
+                'call_duration': duration,
+                'destination': parts[3].strip() if len(parts) > 3 else '',
+                'description': f"{description} ({duration}s)",
+                'cost_amount': cost,
+                'credit_amount': 0.0,
+                'quantity': 1,
+                'site_name': '',
+                'raw_json': json.dumps(parts),
+            })
+        except (ValueError, IndexError):
+            continue
+    return records
+
+
+# ── Public entry point ────────────────────────────────────────────────────────
+
+def parse_file(filename, content):
+    """
+    Parse a supplier billing file.
+    Returns (file_type, billing_period, list_of_charge_dicts).
+    """
+    file_type = detect_file_type(filename, content[:500])
+
+    if file_type in ('gamma_bb', 'gamma_ces', 'gamma_ipdc', 'gamma_wlr', 'gamma_inb'):
+        records = _parse_gamma_ff(content, file_type)
+        period = records[0]['billing_period'] if records else ''
+        return file_type, period, records
+
+    elif file_type in ('gamma_calls_sip', 'gamma_calls_div', 'gamma_calls_ftc',
+                       'gamma_calls_ibrs', 'gamma_calls_nts'):
+        records = _parse_gamma_calls(content, file_type)
+        # derive period from call dates
+        dates = [r['call_date'] for r in records if r.get('call_date')]
+        period = f"{dates[0].year}-{dates[0].month:02d}" if dates else ''
+        return file_type, period, records
+
+    elif file_type == 'nasstar_cdr':
+        records = _parse_nasstar_cdr(content, filename)
+        dates = [r['call_date'] for r in records if r.get('call_date')]
+        period = f"{dates[0].year}-{dates[0].month:02d}" if dates else ''
+        return file_type, period, records
+
+    return file_type, '', []
+
+
+def match_charges_to_clients(charges, session):
+    """
+    Given a list of RawCharge ORM objects, look up ClientIdentifier
+    and set client_id + matched flag. Returns count matched.
+    """
+    from models import ClientIdentifier
+    # Build lookup dict: (id_type_group, normalised_value) -> client_id
+    lookup = {}
+    for ident in session.query(ClientIdentifier).filter_by(active=True).all():
+        lookup[ident.id_value.upper().strip()] = ident.client_id
+
+    matched = 0
+    for charge in charges:
+        key = (charge.source_key or '').upper().strip()
+        if key in lookup:
+            charge.client_id = lookup[key]
+            charge.matched = True
+            matched += 1
+    return matched

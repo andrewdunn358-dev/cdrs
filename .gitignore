@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Database — never commit this
+*.db
+instance/
+
+# Secrets — never commit this
+.env
+
+# Uploaded billing files
+uploads/
+
+# Backups
+backups/
+*.tar.gz
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

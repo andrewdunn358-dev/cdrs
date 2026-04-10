@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Import History{% endblock %}
+{% block page_title %}Import History{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("import_upload") }}" class="btn btn-sm btn-primary"><i class="bi bi-upload me-1"></i>New Import</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>Filename</th><th>Type</th><th>Period</th><th>Records</th><th>Matched</th><th>Imported</th><th></th></tr></thead>
+      <tbody>
+      {% for b in batches %}
+      <tr>
+        <td style="font-size:.82rem">{{ b.filename }}</td>
+        <td><span class="badge bg-secondary">{{ b.file_type }}</span></td>
+        <td>{{ b.billing_period }}</td>
+        <td>{{ b.record_count }}</td>
+        <td>{% if b.matched_count == b.record_count %}<span class="text-success">{{ b.matched_count }}</span>
+            {% else %}<span class="text-warning">{{ b.matched_count }}/{{ b.record_count }}</span>{% endif %}</td>
+        <td class="text-muted small">{{ b.imported_at.strftime("%d %b %Y %H:%M") }}</td>
+        <td>
+          <form method="POST" action="{{ url_for("import_delete", id=b.id) }}" onsubmit="return confirm("Delete this import batch?")">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-muted text-center py-4">No imports yet</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

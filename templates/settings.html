@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card p-4 mb-3">
+      <h6 class="fw-semibold mb-3">Company Details</h6>
+      <form method="POST">
+        <div class="row g-3">
+          <div class="col-12"><label class="form-label">Company Name</label><input name="company_name" class="form-control" value="{{ s.company_name or "" }}"></div>
+          <div class="col-md-6"><label class="form-label">Address Line 1</label><input name="address_line1" class="form-control" value="{{ s.address_line1 or "" }}"></div>
+          <div class="col-md-6"><label class="form-label">Address Line 2</label><input name="address_line2" class="form-control" value="{{ s.address_line2 or "" }}"></div>
+          <div class="col-md-6"><label class="form-label">City</label><input name="city" class="form-control" value="{{ s.city or "" }}"></div>
+          <div class="col-md-3"><label class="form-label">Postcode</label><input name="postcode" class="form-control" value="{{ s.postcode or "" }}"></div>
+          <div class="col-md-6"><label class="form-label">Phone</label><input name="phone" class="form-control" value="{{ s.phone or "" }}"></div>
+          <div class="col-md-6"><label class="form-label">Email</label><input name="email" class="form-control" value="{{ s.email or "" }}"></div>
+          <div class="col-md-6"><label class="form-label">Website</label><input name="website" class="form-control" value="{{ s.website or "" }}"></div>
+          <div class="col-md-3"><label class="form-label">VAT Number</label><input name="vat_number" class="form-control" value="{{ s.vat_number or "" }}"></div>
+          <div class="col-md-3"><label class="form-label">Company Number</label><input name="company_number" class="form-control" value="{{ s.company_number or "" }}"></div>
+          <div class="col-12"><h6 class="text-muted small text-uppercase fw-bold mt-2">Bank Details</h6></div>
+          <div class="col-md-4"><label class="form-label">Bank Name</label><input name="bank_name" class="form-control" value="{{ s.bank_name or "" }}"></div>
+          <div class="col-md-4"><label class="form-label">Sort Code</label><input name="bank_sort_code" class="form-control" value="{{ s.bank_sort_code or "" }}"></div>
+          <div class="col-md-4"><label class="form-label">Account Number</label><input name="bank_account" class="form-control" value="{{ s.bank_account or "" }}"></div>
+          <div class="col-12"><h6 class="text-muted small text-uppercase fw-bold mt-2">Billing Defaults</h6></div>
+          <div class="col-md-3"><label class="form-label">Invoice Prefix</label><input name="invoice_prefix" class="form-control" value="{{ s.invoice_prefix or "INV" }}"></div>
+          <div class="col-md-3"><label class="form-label">Default Markup %</label><input name="default_markup_pct" type="number" step="0.1" class="form-control" value="{{ s.default_markup_pct or 30 }}"></div>
+          <div class="col-md-3"><label class="form-label">VAT Rate %</label><input name="default_vat_rate" type="number" step="0.1" class="form-control" value="{{ s.default_vat_rate or 20 }}"></div>
+          <div class="col-md-3"><label class="form-label">Payment Terms (days)</label><input name="payment_terms_days" type="number" class="form-control" value="{{ s.payment_terms_days or 30 }}"></div>
+          <div class="col-12"><button class="btn btn-primary">Save Settings</button></div>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Users</div>
+      <div class="list-group list-group-flush">
+        {% for u in users %}
+        <div class="list-group-item d-flex align-items-center">
+          <div class="flex-grow-1">
+            <div class="fw-medium">{{ u.username }}</div>
+            <small class="text-muted">{{ u.email }} · {{ u.role }}</small>
+          </div>
+          {% if current_user.role == "admin" and u.id != current_user.id %}
+          <form method="POST" action="{{ url_for("user_delete", id=u.id) }}" onsubmit="return confirm("Delete user?")">
+            <button class="btn btn-sm btn-link text-danger"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% if current_user.role == "admin" %}
+      <div class="card-footer bg-white">
+        <form method="POST" action="{{ url_for("user_new") }}" class="row g-2">
+          <div class="col-6"><input name="username" class="form-control form-control-sm" placeholder="Username" required></div>
+          <div class="col-6"><input name="email" type="email" class="form-control form-control-sm" placeholder="Email" required></div>
+          <div class="col-6"><input name="password" type="password" class="form-control form-control-sm" placeholder="Password" required></div>
+          <div class="col-4">
+            <select name="role" class="form-select form-select-sm">
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="col-2"><button class="btn btn-sm btn-primary w-100">Add</button></div>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

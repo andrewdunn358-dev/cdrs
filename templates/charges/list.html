@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Charges{% endblock %}
+{% block page_title %}Charges{% endblock %}
+{% block content %}
+{% if unmatched_count > 0 %}
+<div class="alert alert-warning d-flex align-items-center gap-2">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <strong>{{ unmatched_count }}</strong> unmatched charge(s) need assigning to a client before invoicing.
+  <a href="#unmatched-panel" class="ms-auto btn btn-sm btn-warning">Review unmatched</a>
+</div>
+{% endif %}
+
+<div class="card mb-3">
+  <div class="card-header bg-white">
+    <form class="d-flex flex-wrap gap-2" method="GET">
+      <select name="period" class="form-select form-select-sm" style="width:150px">
+        <option value="">All periods</option>
+        {% for p in periods %}<option value="{{ p }}" {% if p==selected_period %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+      <select name="client_id" class="form-select form-select-sm" style="width:200px">
+        <option value="">All clients</option>
+        {% for c in clients %}<option value="{{ c.id }}" {% if c.id|string==selected_client %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+      <div class="form-check form-check-inline my-auto">
+        <input class="form-check-input" type="checkbox" name="unmatched" value="1" id="um" {% if unmatched_only %}checked{% endif %}>
+        <label class="form-check-label" for="um">Unmatched only</label>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary">Filter</button>
+      <span class="ms-auto my-auto text-muted small">{{ charges|length }} shown</span>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead><tr><th>Period</th><th>Source Key</th><th>Product</th><th>Type</th><th>Client</th><th class="text-end">Cost</th><th></th></tr></thead>
+      <tbody>
+      {% for c in charges %}
+      <tr class="{% if not c.matched %}table-warning{% endif %}">
+        <td>{{ c.billing_period }}</td>
+        <td style="font-size:.75rem;font-family:monospace">{{ c.source_key }}</td>
+        <td style="font-size:.8rem">{{ (c.product_name or "—")[:40] }}</td>
+        <td><span class="badge bg-light text-dark">{{ c.charge_type }}</span></td>
+        <td>{% if c.client %}{{ c.client.name }}{% else %}<span class="text-danger">Unmatched</span>{% endif %}</td>
+        <td class="text-end">£{{ "%.4f"|format(c.cost_amount) }}</td>
+        <td>
+          {% if not c.matched %}
+          <form method="POST" action="{{ url_for("charge_assign", id=c.id) }}" class="d-flex gap-1">
+            <select name="client_id" class="form-select form-select-sm" style="width:150px" required>
+              <option value="">Assign to…</option>
+              {% for cl in clients %}<option value="{{ cl.id }}">{{ cl.name }}</option>{% endfor %}
+            </select>
+            <button class="btn btn-sm btn-primary">Assign</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-muted text-center py-3">No charges found</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if unmatched_only %}
+<div id="unmatched-panel" class="card">
+  <div class="card-header bg-white fw-semibold">Bulk Assign by Source Key</div>
+  <div class="card-body" id="bulk-assign-container">
+    <p class="text-muted small">Loading unmatched keys…</p>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if unmatched_only %}
+<script>
+fetch("/api/unmatched-keys").then(r=>r.json()).then(data=>{
+  const clients = {{ clients|map(attribute="id")|list }};
+  const clientNames = {
+    {% for c in clients %}"{{ c.id }}":"{{ c.name }}",{% endfor %}
+  };
+  let html = data.map(k=>`
+    <div class="border rounded p-3 mb-2">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div><strong style="font-family:monospace">${k.key}</strong> <span class="badge bg-secondary">${k.count} charges</span> <span class="text-muted ms-2">Cost: £${k.total.toFixed(4)}</span></div>
+        <form method="POST" action="/charges/bulk-assign" class="d-flex gap-2 ms-auto">
+          <input type="hidden" name="source_key" value="${k.key}">
+          <select name="client_id" class="form-select form-select-sm" style="width:180px" required>
+            <option value="">Assign to client…</option>
+            ${Object.entries(clientNames).map(([id,name])=>`<option value="${id}">${name}</option>`).join("")}
+          </select>
+          <select name="id_type" class="form-select form-select-sm" style="width:180px">
+            <option value="gamma_circuit">Gamma Circuit</option>
+            <option value="gamma_ipdc_endpoint">IPDC Endpoint</option>
+            <option value="gamma_ces_circuit">CES Circuit</option>
+            <option value="nasstar_account">Nasstar Account</option>
+            <option value="gamma_cli">Gamma CLI</option>
+            <option value="gamma_wlr">Gamma WLR</option>
+          </select>
+          <div class="form-check my-auto">
+            <input class="form-check-input" type="checkbox" name="create_identifier" value="1" id="ci_${k.key}" checked>
+            <label class="form-check-label small" for="ci_${k.key}">Save identifier</label>
+          </div>
+          <button class="btn btn-sm btn-primary">Assign all</button>
+        </form>
+      </div>
+    </div>`).join("") || "<p class=\"text-success\">All charges are matched!</p>";
+  document.getElementById("bulk-assign-container").innerHTML = html;
+});
+</script>
+{% endif %}
+{% endblock %}

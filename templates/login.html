@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sign In — Synthesis IT Billing</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>body{background:#f0f2f5;display:flex;align-items:center;justify-content:center;min-height:100vh}</style>
+</head>
+<body>
+<div class="card shadow-sm" style="width:360px;border:none">
+  <div class="card-body p-4">
+    <div class="text-center mb-4">
+      <div class="fw-bold" style="color:#1e3a5f;font-size:1.2rem">Synthesis IT</div>
+      <small class="text-muted">Billing System</small>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}<div class="alert alert-{{ cat }} py-2">{{ msg }}</div>{% endfor %}
+    {% endwith %}
+    <form method="POST">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Username</label>
+        <input name="username" class="form-control" required autofocus>
+      </div>
+      <div class="mb-4">
+        <label class="form-label fw-semibold">Password</label>
+        <input type="password" name="password" class="form-control" required>
+      </div>
+      <button class="btn btn-primary w-100" style="background:#1e3a5f;border-color:#1e3a5f">Sign In</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

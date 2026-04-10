@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if client else "New" }} Client{% endblock %}
+{% block page_title %}{{ "Edit" if client else "New" }} Client{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-lg-8">
+<form method="POST" class="card p-4">
+  <div class="row g-3">
+    <div class="col-12"><h6 class="text-muted text-uppercase small fw-bold letter-spacing">Company Details</h6></div>
+    <div class="col-md-8"><label class="form-label">Client Name *</label><input name="name" class="form-control" value="{{ client.name if client else "" }}" required></div>
+    <div class="col-md-4"><label class="form-label">Account Ref</label><input name="account_ref" class="form-control" value="{{ client.account_ref or "" if client else "" }}"></div>
+    <div class="col-md-6"><label class="form-label">Address Line 1</label><input name="address_line1" class="form-control" value="{{ client.address_line1 or "" if client else "" }}"></div>
+    <div class="col-md-6"><label class="form-label">Address Line 2</label><input name="address_line2" class="form-control" value="{{ client.address_line2 or "" if client else "" }}"></div>
+    <div class="col-md-6"><label class="form-label">City</label><input name="city" class="form-control" value="{{ client.city or "" if client else "" }}"></div>
+    <div class="col-md-3"><label class="form-label">Postcode</label><input name="postcode" class="form-control" value="{{ client.postcode or "" if client else "" }}"></div>
+    <div class="col-md-3"><label class="form-label">VAT Number</label><input name="vat_number" class="form-control" value="{{ client.vat_number or "" if client else "" }}"></div>
+    <div class="col-12 mt-2"><h6 class="text-muted text-uppercase small fw-bold">Contact</h6></div>
+    <div class="col-md-4"><label class="form-label">Contact Name</label><input name="contact_name" class="form-control" value="{{ client.contact_name or "" if client else "" }}"></div>
+    <div class="col-md-4"><label class="form-label">Email</label><input name="contact_email" type="email" class="form-control" value="{{ client.contact_email or "" if client else "" }}"></div>
+    <div class="col-md-4"><label class="form-label">Phone</label><input name="contact_phone" class="form-control" value="{{ client.contact_phone or "" if client else "" }}"></div>
+    <div class="col-12 mt-2"><h6 class="text-muted text-uppercase small fw-bold">Billing</h6></div>
+    <div class="col-md-3"><label class="form-label">Markup %</label><input name="markup_pct" type="number" step="0.1" class="form-control" value="{{ client.markup_pct if client else 30.0 }}" required></div>
+    <div class="col-md-3"><label class="form-label">Billing Day</label><input name="billing_day" type="number" min="1" max="28" class="form-control" value="{{ client.billing_day if client else 1 }}"></div>
+    <div class="col-12"><label class="form-label">Notes</label><textarea name="notes" class="form-control" rows="2">{{ client.notes or "" if client else "" }}</textarea></div>
+    <div class="col-12 d-flex gap-2">
+      <button type="submit" class="btn btn-primary">{{ "Save Changes" if client else "Create Client" }}</button>
+      <a href="{{ url_for("clients") }}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+  </div>
+</form>
+</div></div>
+{% endblock %}

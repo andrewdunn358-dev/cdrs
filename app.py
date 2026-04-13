@@ -384,14 +384,30 @@ def charge_assign(id):
 @login_required
 def charge_rematch():
     """Re-run matching on all unmatched charges using current identifiers."""
-    from models import IgnoredKey
+    from models import IgnoredKey, ClientIdentifier
+
+    # Force fresh read from DB
+    db.session.expire_all()
+
     ignored_keys = set(i.source_key for i in IgnoredKey.query.all())
 
-    unmatched = RawCharge.query.filter_by(matched=False, invoiced=False).all()
-    # Filter out ignored
-    unmatched = [c for c in unmatched if c.source_key not in ignored_keys]
+    # Build lookup fresh
+    lookup = {}
+    for ident in ClientIdentifier.query.filter_by(active=True).all():
+        lookup[ident.id_value.upper().strip()] = ident.client_id
 
-    matched = match_charges_to_clients(unmatched, db.session)
+    unmatched = RawCharge.query.filter_by(matched=False, invoiced=False).all()
+
+    matched = 0
+    for charge in unmatched:
+        if charge.source_key in ignored_keys:
+            continue
+        key = (charge.source_key or '').upper().strip()
+        if key in lookup:
+            charge.client_id = lookup[key]
+            charge.matched = True
+            matched += 1
+
     db.session.commit()
     flash(f'Re-matched {matched} of {len(unmatched)} unmatched charges.', 'success')
     return redirect(url_for('charges', unmatched='1'))

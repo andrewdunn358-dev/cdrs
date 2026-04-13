@@ -67,18 +67,49 @@ def logout():
 @app.route('/')
 @login_required
 def dashboard():
-    s = get_settings()
+    from models import IgnoredKey
+    from sqlalchemy import func as sqlfunc
+
     total_clients = Client.query.filter_by(active=True).count()
     total_invoices = Invoice.query.count()
-    unpaid = Invoice.query.filter(Invoice.status.in_(['draft','sent'])).all()
-    unpaid_total = sum(i.total for i in unpaid)
-    recent_imports = ImportBatch.query.order_by(ImportBatch.imported_at.desc()).limit(5).all()
-    unmatched = RawCharge.query.filter_by(matched=False, invoiced=False).count()
     recent_invoices = Invoice.query.order_by(Invoice.created_at.desc()).limit(8).all()
-    return render_template('dashboard.html', s=s,
-        total_clients=total_clients, total_invoices=total_invoices,
-        unpaid_total=unpaid_total, recent_imports=recent_imports,
-        unmatched=unmatched, recent_invoices=recent_invoices)
+
+    latest_period = (db.session.query(ImportBatch.billing_period)
+        .filter(ImportBatch.file_type.in_(['gamma_bb','gamma_ces','gamma_ipdc','gamma_wlr']))
+        .order_by(ImportBatch.billing_period.desc()).first())
+    current_period = latest_period[0] if latest_period else None
+
+    period_revenue = 0.0
+    period_invoices = 0
+    if current_period:
+        invs = Invoice.query.filter_by(billing_period=current_period).all()
+        period_revenue = sum(i.total for i in invs)
+        period_invoices = len(invs)
+
+    ignored_keys = set(i.source_key for i in IgnoredKey.query.all())
+    unmatched_count = (RawCharge.query
+        .filter(RawCharge.matched == False, RawCharge.invoiced == False,
+                RawCharge.archived == False,
+                ~RawCharge.source_key.in_(ignored_keys) if ignored_keys else True)
+        .distinct(RawCharge.source_key).count())
+
+    draft_count = Invoice.query.filter_by(status='draft').count()
+
+    dupes = (db.session.query(ImportBatch.filename, sqlfunc.count(ImportBatch.id).label('cnt'))
+             .group_by(ImportBatch.filename)
+             .having(sqlfunc.count(ImportBatch.id) > 1)
+             .all())
+
+    return render_template('dashboard.html',
+        total_clients=total_clients,
+        total_invoices=total_invoices,
+        recent_invoices=recent_invoices,
+        current_period=current_period,
+        period_revenue=period_revenue,
+        period_invoices=period_invoices,
+        unmatched_count=unmatched_count,
+        draft_count=draft_count,
+        duplicate_batches=dupes)
 
 
 # ── Clients ───────────────────────────────────────────────────────────────────

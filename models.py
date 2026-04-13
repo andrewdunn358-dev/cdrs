@@ -155,6 +155,20 @@ class CompanySettings(db.Model):
     default_vat_rate = db.Column(db.Float, default=20.0)
     payment_terms_days = db.Column(db.Integer, default=30)
 
+class RecurringCharge(db.Model):
+    """Fixed monthly charges added to a client invoice every billing run."""
+    __tablename__ = 'recurring_charges'
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=False)
+    description = db.Column(db.String(300), nullable=False)
+    category = db.Column(db.String(100), default='Other')
+    unit_price = db.Column(db.Float, default=0.0)   # sell price ex VAT
+    unit_cost = db.Column(db.Float, default=0.0)    # cost price
+    vat_rate = db.Column(db.Float, default=20.0)
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    client = db.relationship('Client', backref=db.backref('recurring_charges', lazy=True))
+
 class IgnoredKey(db.Model):
     """Source keys that should never appear in unmatched charges."""
     __tablename__ = 'ignored_keys'

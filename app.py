@@ -544,6 +544,38 @@ def charge_bulk_assign():
     return redirect(url_for('charges', unmatched='1'))
 
 
+
+# ── Recurring Charges ─────────────────────────────────────────────────────────
+
+@app.route('/clients/<int:id>/recurring/add', methods=['POST'])
+@login_required
+def add_recurring(id):
+    from models import RecurringCharge
+    db.get_or_404(Client, id)
+    rc = RecurringCharge(
+        client_id=id,
+        description=request.form.get('description', ''),
+        category=request.form.get('category', 'Other'),
+        unit_price=float(request.form.get('unit_price', 0)),
+        unit_cost=float(request.form.get('unit_cost', 0)),
+        vat_rate=float(request.form.get('vat_rate', 20.0)),
+    )
+    db.session.add(rc)
+    db.session.commit()
+    flash('Recurring charge added.', 'success')
+    return redirect(url_for('client_detail', id=id))
+
+@app.route('/recurring/<int:id>/delete', methods=['POST'])
+@login_required
+def delete_recurring(id):
+    from models import RecurringCharge
+    rc = db.get_or_404(RecurringCharge, id)
+    client_id = rc.client_id
+    db.session.delete(rc)
+    db.session.commit()
+    flash('Recurring charge removed.', 'success')
+    return redirect(url_for('client_detail', id=client_id))
+
 # ── Invoices ──────────────────────────────────────────────────────────────────
 
 @app.route('/invoices')
@@ -649,6 +681,15 @@ def invoices_bulk_delete():
 def invoice_detail(id):
     inv = db.get_or_404(Invoice, id)
     return render_template('invoices/detail.html', invoice=inv, settings=get_settings())
+
+@app.route('/invoices/<int:id>/mark-sent', methods=['POST'])
+@login_required
+def invoice_mark_sent(id):
+    inv = db.get_or_404(Invoice, id)
+    inv.status = 'sent'
+    db.session.commit()
+    flash(f'Invoice {inv.invoice_number} marked as sent.', 'success')
+    return redirect(url_for('invoice_detail', id=id))
 
 @app.route('/invoices/<int:id>/pdf')
 @login_required

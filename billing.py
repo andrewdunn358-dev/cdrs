@@ -100,6 +100,40 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
                 })
                 sort_order += 1
 
+        # Add recurring fixed charges (IP addressing, SIP channels etc)
+        from models import RecurringCharge, ClientIdentifier
+        for rc in RecurringCharge.query.filter_by(client_id=client_id, active=True).all():
+            lines.append({
+                'category': rc.category,
+                'description': rc.description,
+                'quantity': 1,
+                'unit_cost': rc.unit_cost,
+                'unit_price': rc.unit_price,
+                'line_total': rc.unit_price,
+                'vat_rate': rc.vat_rate,
+                'sort_order': sort_order,
+                'charge_ids': [],
+            })
+            sort_order += 1
+
+        # Auto-add £24 IP addressing for leased line clients (if not already a recurring charge)
+        has_ces = ClientIdentifier.query.filter_by(
+            client_id=client_id, id_type='gamma_ces_circuit', active=True).first()
+        has_ip_charge = any('IP' in l['description'].upper() for l in lines)
+        if has_ces and not has_ip_charge:
+            lines.append({
+                'category': 'Leased Lines',
+                'description': 'IP Addressing',
+                'quantity': 1,
+                'unit_cost': 0.0,
+                'unit_price': 24.00,
+                'line_total': 24.00,
+                'vat_rate': 20.0,
+                'sort_order': sort_order,
+                'charge_ids': [],
+            })
+            sort_order += 1
+
         # Always generate an invoice — zero line if nothing to bill
         if not lines:
             lines.append({
@@ -264,7 +298,7 @@ def generate_pdf(invoice, settings):
         pdf.set_x(15)
         pdf.cell(90, 6, line.description[:55], fill=True)
         pdf.cell(25, 6, line.category, fill=True, align='C')
-        pdf.cell(25, 6, f"£{line.unit_cost:,.4f}", fill=True, align='R')
+        pdf.cell(25, 6, f"£{line.unit_cost:,.2f}", fill=True, align='R')
         pdf.cell(25, 6, f"£{line.line_total:,.2f}", fill=True, align='R')
         pdf.cell(20, 6, f"{line.vat_rate:.0f}%", fill=True, align='R', ln=True)
         fill = not fill

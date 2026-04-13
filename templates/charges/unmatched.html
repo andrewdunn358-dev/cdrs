@@ -6,6 +6,13 @@
   <a href="{{ url_for("charges") }}" class="btn btn-sm btn-outline-secondary">All Charges</a>
 {% endblock %}
 {% block content %}
+<div class="d-flex justify-content-end mb-2">
+  <form method="POST" action="{{ url_for("charge_rematch") }}">
+    <button class="btn btn-sm btn-outline-primary">
+      <i class="bi bi-arrow-repeat me-1"></i>Re-match all unmatched
+    </button>
+  </form>
+</div>
 {% if unmatched_count == 0 %}
 <div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>All charges are matched — nothing to review.</div>
 {% else %}

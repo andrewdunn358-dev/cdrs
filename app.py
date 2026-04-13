@@ -380,7 +380,21 @@ def charge_assign(id):
         flash('Charge assigned to client.', 'success')
     return redirect(request.referrer or url_for('charges'))
 
-@app.route('/charges/ignore', methods=['POST'])
+@app.route('/charges/rematch', methods=['POST'])
+@login_required
+def charge_rematch():
+    """Re-run matching on all unmatched charges using current identifiers."""
+    from models import IgnoredKey
+    ignored_keys = set(i.source_key for i in IgnoredKey.query.all())
+
+    unmatched = RawCharge.query.filter_by(matched=False, invoiced=False).all()
+    # Filter out ignored
+    unmatched = [c for c in unmatched if c.source_key not in ignored_keys]
+
+    matched = match_charges_to_clients(unmatched, db.session)
+    db.session.commit()
+    flash(f'Re-matched {matched} of {len(unmatched)} unmatched charges.', 'success')
+    return redirect(url_for('charges', unmatched='1'))
 @login_required
 def charge_ignore():
     from models import IgnoredKey

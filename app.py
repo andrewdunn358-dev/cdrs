@@ -395,6 +395,8 @@ def charge_rematch():
     db.session.commit()
     flash(f'Re-matched {matched} of {len(unmatched)} unmatched charges.', 'success')
     return redirect(url_for('charges', unmatched='1'))
+
+@app.route('/charges/ignore', methods=['POST'])
 @login_required
 def charge_ignore():
     from models import IgnoredKey

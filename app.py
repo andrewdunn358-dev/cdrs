@@ -89,7 +89,16 @@ def clients():
     q = request.args.get('q', '')
     query = Client.query.filter_by(active=True)
     if q:
-        query = query.filter(Client.name.ilike(f'%{q}%') | Client.account_ref.ilike(f'%{q}%'))
+        # Search name, account ref, and identifier values
+        from sqlalchemy import exists
+        query = query.filter(
+            Client.name.ilike(f'%{q}%') |
+            Client.account_ref.ilike(f'%{q}%') |
+            Client.id.in_(
+                db.session.query(ClientIdentifier.client_id)
+                .filter(ClientIdentifier.id_value.ilike(f'%{q}%'))
+            )
+        )
     clients = query.order_by(Client.name).all()
     return render_template('clients/list.html', clients=clients, q=q)
 
@@ -202,22 +211,34 @@ def client_edit(id):
 @login_required
 def add_identifier(id):
     db.get_or_404(Client, id)
-    val = request.form.get('id_value', '').strip()
-    if val:
+    id_type = request.form.get('id_type', 'gamma_cli')
+    description = request.form.get('description', '')
+
+    # Support bulk add — newline or comma separated values
+    raw = request.form.get('id_value', '')
+    # Split on newlines and commas, strip whitespace
+    import re
+    values = [v.strip() for v in re.split(r'[\n,]+', raw) if v.strip()]
+
+    added = 0
+    skipped = 0
+    for val in values:
         existing = ClientIdentifier.query.filter_by(
-            id_type=request.form['id_type'], id_value=val).first()
+            id_type=id_type, id_value=val).first()
         if existing:
-            flash(f'Identifier "{val}" already assigned to another client.', 'warning')
+            skipped += 1
         else:
-            ident = ClientIdentifier(
-                client_id=id,
-                id_type=request.form['id_type'],
-                id_value=val,
-                description=request.form.get('description', ''),
-            )
-            db.session.add(ident)
-            db.session.commit()
-            flash('Identifier added.', 'success')
+            db.session.add(ClientIdentifier(
+                client_id=id, id_type=id_type,
+                id_value=val, description=description,
+            ))
+            added += 1
+
+    if added:
+        db.session.commit()
+        flash(f'Added {added} identifier(s).{" "+str(skipped)+" already existed." if skipped else ""}', 'success')
+    elif skipped:
+        flash(f'All {skipped} identifier(s) already assigned.', 'warning')
     return redirect(url_for('client_detail', id=id))
 
 @app.route('/identifiers/<int:id>/delete', methods=['POST'])
@@ -410,6 +431,44 @@ def charge_rematch():
 
     db.session.commit()
     flash(f'Re-matched {matched} of {len(unmatched)} unmatched charges.', 'success')
+    return redirect(url_for('charges', unmatched='1'))
+
+@app.route('/charges/ignore-zero', methods=['POST'])
+@login_required
+def charge_ignore_zero():
+    """Ignore all unmatched source keys that have zero total cost."""
+    from models import IgnoredKey
+    from sqlalchemy import func
+    zero_keys = (db.session.query(RawCharge.source_key)
+                 .filter(RawCharge.matched == False, RawCharge.invoiced == False)
+                 .group_by(RawCharge.source_key)
+                 .having(func.sum(RawCharge.cost_amount) == 0)
+                 .all())
+    added = 0
+    for (key,) in zero_keys:
+        if key and not IgnoredKey.query.filter_by(source_key=key).first():
+            db.session.add(IgnoredKey(source_key=key, ignored_by=current_user.id,
+                                      reason='Auto-ignored: zero cost'))
+            added += 1
+    db.session.commit()
+    flash(f'Ignored {added} zero-cost source key(s).', 'success')
+    return redirect(url_for('charges', unmatched='1'))
+
+@app.route('/charges/ignore-selected', methods=['POST'])
+@login_required
+def charge_ignore_selected():
+    """Ignore a comma-separated list of source keys."""
+    from models import IgnoredKey
+    keys = request.form.get('keys', '').split(',')
+    added = 0
+    for key in keys:
+        key = key.strip()
+        if key and not IgnoredKey.query.filter_by(source_key=key).first():
+            db.session.add(IgnoredKey(source_key=key, ignored_by=current_user.id,
+                                      reason='Bulk ignored'))
+            added += 1
+    db.session.commit()
+    flash(f'Ignored {added} source key(s).', 'success')
     return redirect(url_for('charges', unmatched='1'))
 
 @app.route('/charges/ignore', methods=['POST'])

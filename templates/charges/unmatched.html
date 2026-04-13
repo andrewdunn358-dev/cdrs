@@ -6,13 +6,26 @@
   <a href="{{ url_for("charges") }}" class="btn btn-sm btn-outline-secondary">All Charges</a>
 {% endblock %}
 {% block content %}
-<div class="d-flex justify-content-end mb-2">
-  <form method="POST" action="{{ url_for("charge_rematch") }}">
-    <button class="btn btn-sm btn-outline-primary">
-      <i class="bi bi-arrow-repeat me-1"></i>Re-match all unmatched
-    </button>
+
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <form method="POST" action="{{ url_for("charge_rematch") }}" class="d-inline">
+    <button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-repeat me-1"></i>Re-match all unmatched</button>
   </form>
+  <div class="d-flex gap-2">
+    <form method="POST" action="{{ url_for("charge_ignore_zero") }}">
+      <button class="btn btn-sm btn-outline-warning" onclick="return confirm('Ignore all £0.00 cost unmatched keys?')">
+        <i class="bi bi-slash-circle me-1"></i>Ignore all £0.00
+      </button>
+    </form>
+    <form method="POST" action="{{ url_for("charge_ignore_selected") }}" id="bulkIgnoreForm">
+      <input type="hidden" name="keys" id="selectedKeys">
+      <button class="btn btn-sm btn-outline-danger" onclick="return submitSelected(event)">
+        <i class="bi bi-slash-circle me-1"></i>Ignore selected (<span id="selectedCount">0</span>)
+      </button>
+    </form>
+  </div>
 </div>
+
 {% if unmatched_count == 0 %}
 <div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>All charges are matched — nothing to review.</div>
 {% else %}
@@ -22,13 +35,19 @@
 </div>
 
 <div class="card">
-  <div class="card-header bg-white fw-semibold d-flex justify-content-between">
-    <span>Unmatched Source Keys</span>
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <input type="checkbox" id="selectAll" onchange="toggleAll(this)" class="form-check-input mt-0">
+      <label for="selectAll" class="mb-0 small">Select all</label>
+    </div>
     <span class="text-muted small">{{ unmatched_count }} unique key(s)</span>
   </div>
   {% for row in grouped %}
   <div class="border-bottom p-3">
     <div class="row align-items-center g-2">
+      <div class="col-auto">
+        <input type="checkbox" class="form-check-input row-check mt-0" value="{{ row.source_key }}" onchange="updateCount()">
+      </div>
       <div class="col-lg-3">
         <div class="fw-bold font-monospace">{{ row.source_key }}</div>
         <small class="text-muted">{{ row.file_type }} &middot; {{ row.period }}</small><br>
@@ -39,7 +58,9 @@
         <small class="text-muted">charges</small>
       </div>
       <div class="col-lg-2 text-center">
-        <div class="fw-bold">£{{ "%.4f"|format(row.total_cost or 0) }}</div>
+        <div class="fw-bold {% if (row.total_cost or 0) == 0 %}text-muted{% endif %}">
+          £{{ "%.4f"|format(row.total_cost or 0) }}
+        </div>
         <small class="text-muted">total cost</small>
       </div>
       <div class="col-lg-4">
@@ -72,11 +93,11 @@
           </div>
         </form>
       </div>
-      <div class="col-lg-2 text-end">
+      <div class="col-lg-1 text-end">
         <form method="POST" action="{{ url_for("charge_ignore") }}">
           <input type="hidden" name="source_key" value="{{ row.source_key }}">
           <button class="btn btn-sm btn-outline-secondary w-100" onclick="return confirm('Ignore all charges for this key?')">
-            <i class="bi bi-slash-circle me-1"></i>Ignore
+            <i class="bi bi-slash-circle"></i>
           </button>
         </form>
       </div>
@@ -85,4 +106,25 @@
   {% endfor %}
 </div>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleAll(cb) {
+  document.querySelectorAll(".row-check").forEach(c => c.checked = cb.checked);
+  updateCount();
+}
+function updateCount() {
+  const checked = document.querySelectorAll(".row-check:checked");
+  document.getElementById("selectedCount").textContent = checked.length;
+  document.getElementById("selectAll").indeterminate =
+    checked.length > 0 && checked.length < document.querySelectorAll(".row-check").length;
+}
+function submitSelected(e) {
+  const checked = document.querySelectorAll(".row-check:checked");
+  if (checked.length === 0) { e.preventDefault(); alert("Select at least one key first."); return false; }
+  if (!confirm("Ignore " + checked.length + " selected key(s)?")) { e.preventDefault(); return false; }
+  document.getElementById("selectedKeys").value = Array.from(checked).map(c => c.value).join(",");
+  return true;
+}
+</script>
 {% endblock %}

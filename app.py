@@ -560,6 +560,40 @@ def invoices():
         periods=[p[0] for p in periods if p[0]],
         selected_period=period, selected_status=status)
 
+@app.route('/invoices/billing-run', methods=['POST'])
+@login_required
+def billing_run():
+    """One-click billing run — generates invoices for all clients using most recent period."""
+    s = get_settings()
+
+    # Find most recent billing period from imported service files
+    latest = (db.session.query(ImportBatch.billing_period)
+              .filter(ImportBatch.file_type.in_(['gamma_bb','gamma_ces','gamma_ipdc','gamma_wlr','gamma_inb']))
+              .order_by(ImportBatch.billing_period.desc())
+              .first())
+
+    if not latest:
+        flash('No service files imported yet — import files first.', 'warning')
+        return redirect(url_for('invoices'))
+
+    period = latest[0]
+
+    # Check not already run for this period
+    existing = Invoice.query.filter_by(billing_period=period).first()
+    if existing:
+        flash(f'Invoices already exist for {period}. Delete them first to rerun.', 'warning')
+        return redirect(url_for('invoices', period=period))
+
+    client_ids = [c.id for c in Client.query.filter_by(active=True).all()]
+    run = InvoiceRun(billing_period=period, created_by=current_user.id)
+    db.session.add(run)
+    db.session.flush()
+
+    created = generate_invoices(period, client_ids, db.session, run.id, current_user.id, s)
+    db.session.commit()
+    flash(f'Billing run complete — {len(created)} invoices generated for {period}.', 'success')
+    return redirect(url_for('invoices', period=period))
+
 @app.route('/invoices/generate', methods=['GET', 'POST'])
 @login_required
 def invoice_generate():

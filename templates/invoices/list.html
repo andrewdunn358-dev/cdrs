@@ -2,7 +2,11 @@
 {% block title %}Invoices{% endblock %}
 {% block page_title %}Invoices{% endblock %}
 {% block topbar_actions %}
-  <a href="{{ url_for("invoice_generate") }}" class="btn btn-sm btn-success"><i class="bi bi-lightning me-1"></i>Generate</a>
+  <form method="POST" action="{{ url_for("billing_run") }}" class="d-inline"
+        onsubmit="return confirm('Run billing for the most recent period? This will generate invoices for all 48 clients.')">
+    <button class="btn btn-sm btn-success"><i class="bi bi-lightning-fill me-1"></i>Billing Run</button>
+  </form>
+  <a href="{{ url_for("invoice_generate") }}" class="btn btn-sm btn-outline-secondary">Custom Generate</a>
 {% endblock %}
 {% block content %}
 <div class="card">

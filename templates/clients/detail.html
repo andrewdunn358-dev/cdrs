@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ client.name }}{% endblock %}
 {% block page_title %}{{ client.name }}{% endblock %}
+{% block breadcrumb_extra %}{{ client.name }}{% endblock %}
 {% block topbar_actions %}
   <a href="{{ url_for("client_edit", id=client.id) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
 {% endblock %}

@@ -82,7 +82,41 @@ body{font-size:.875rem;background:#f0f2f5}
 <div class="main-content">
   {% if current_user.is_authenticated %}
   <div class="topbar">
-    <h1 class="topbar-title">{% block page_title %}{% endblock %}</h1>
+    <div>
+      <h1 class="topbar-title">{% block page_title %}{% endblock %}</h1>
+      <nav aria-label="breadcrumb" style="margin-top:2px">
+        <ol class="breadcrumb mb-0" style="font-size:.72rem">
+          {% if request.endpoint != 'dashboard' %}
+          <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}" class="text-muted text-decoration-none">Home</a></li>
+          {% endif %}
+          {% if request.endpoint in ['client_detail','client_edit'] %}
+            <li class="breadcrumb-item"><a href="{{ url_for('clients') }}" class="text-muted text-decoration-none">Clients</a></li>
+            <li class="breadcrumb-item active text-muted">{% block breadcrumb_extra %}{% endblock %}</li>
+          {% elif 'client' in (request.endpoint or '') %}
+            <li class="breadcrumb-item active text-muted">Clients</li>
+          {% elif request.endpoint == 'import_upload' %}
+            <li class="breadcrumb-item active text-muted">Import Files</li>
+          {% elif request.endpoint == 'imports' %}
+            <li class="breadcrumb-item active text-muted">Import History</li>
+          {% elif request.endpoint in ['charges','charges_ignored'] %}
+            <li class="breadcrumb-item active text-muted">Unmatched Charges</li>
+          {% elif request.endpoint == 'invoice_generate' %}
+            <li class="breadcrumb-item"><a href="{{ url_for('invoices') }}" class="text-muted text-decoration-none">Invoices</a></li>
+            <li class="breadcrumb-item active text-muted">Generate</li>
+          {% elif request.endpoint == 'invoice_detail' %}
+            <li class="breadcrumb-item"><a href="{{ url_for('invoices') }}" class="text-muted text-decoration-none">Invoices</a></li>
+            <li class="breadcrumb-item active text-muted">{% block breadcrumb_invoice %}{% endblock %}</li>
+          {% elif request.endpoint == 'invoices' %}
+            <li class="breadcrumb-item active text-muted">Invoices</li>
+          {% elif request.endpoint == 'billing_summary' %}
+            <li class="breadcrumb-item active text-muted">Billing Summary</li>
+          {% elif request.endpoint == 'settings' %}
+            <li class="breadcrumb-item active text-muted">Settings</li>
+          {% elif request.endpoint == 'dashboard' %}
+          {% endif %}
+        </ol>
+      </nav>
+    </div>
     <div class="d-flex gap-2">{% block topbar_actions %}{% endblock %}</div>
   </div>
   {% endif %}

@@ -55,14 +55,38 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
             groups[key]['qty'] += c.quantity
             groups[key]['charge_ids'].append(c.id)
 
+        # Merge all call lines into a single "Call Charges" line
+        call_total_cost = sum(g['cost'] for (cat, _), g in groups.items() if cat == 'Calls')
+        call_charge_ids = [cid for (cat, _), g in groups.items() if cat == 'Calls' for cid in g['charge_ids']]
+        non_call_groups = {k: v for k, v in groups.items() if k[0] != 'Calls'}
+
         lines = []
         sort_order = 0
+
+        # Add single call charges line if there are any calls
+        if call_charge_ids:
+            call_sell = round(call_total_cost * markup, 2)
+            lines.append({
+                'category': 'Calls',
+                'description': 'Call Charges',
+                'quantity': 1,
+                'unit_cost': round(call_total_cost, 2),
+                'unit_price': call_sell,
+                'line_total': call_sell,
+                'vat_rate': 20.0,
+                'sort_order': sort_order,
+                'charge_ids': call_charge_ids,
+            })
+            sort_order += 1
+
         for cat in CATEGORY_ORDER:
-            for (g_cat, g_name), g in sorted(groups.items()):
+            if cat == 'Calls':
+                continue
+            for (g_cat, g_name), g in sorted(non_call_groups.items()):
                 if g_cat != cat:
                     continue
-                unit_cost = g['cost']
-                unit_price = round(unit_cost * markup, 4)
+                unit_cost = round(g['cost'], 2)
+                unit_price = round(unit_cost * markup, 2)
                 lines.append({
                     'category': cat,
                     'description': g_name,

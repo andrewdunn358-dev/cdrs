@@ -283,6 +283,20 @@ def import_upload():
                 db.session.add(batch)
                 db.session.flush()
 
+                # Auto-archive any older uninvoiced batches of the same file type
+                older_batches = (ImportBatch.query
+                    .filter(ImportBatch.file_type == file_type,
+                            ImportBatch.id != batch.id)
+                    .all())
+                archived_count = 0
+                for old_batch in older_batches:
+                    updated = (RawCharge.query
+                        .filter_by(batch_id=old_batch.id, invoiced=False, archived=False)
+                        .update({'archived': True}))
+                    archived_count += updated
+                if archived_count:
+                    db.session.flush()
+
                 charge_objs = []
                 for r in records:
                     c = RawCharge(
@@ -354,6 +368,7 @@ def charges():
             .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
             .filter(RawCharge.matched == False,
                     RawCharge.invoiced == False,
+                    RawCharge.archived == False,
                     ~RawCharge.source_key.in_(ignored_keys) if ignored_keys else True)
             .group_by(RawCharge.source_key)
             .order_by(func.count(RawCharge.id).desc())
@@ -379,7 +394,7 @@ def charges():
     periods = db.session.query(ImportBatch.billing_period).distinct().order_by(ImportBatch.billing_period.desc()).all()
     clients = Client.query.filter_by(active=True).order_by(Client.name).all()
     unmatched_count = (RawCharge.query
-        .filter(RawCharge.matched == False, RawCharge.invoiced == False,
+        .filter(RawCharge.matched == False, RawCharge.invoiced == False, RawCharge.archived == False,
                 ~RawCharge.source_key.in_(ignored_keys) if ignored_keys else True)
         .distinct(RawCharge.source_key).count())
 
@@ -417,7 +432,7 @@ def charge_rematch():
     for ident in ClientIdentifier.query.filter_by(active=True).all():
         lookup[ident.id_value.upper().strip()] = ident.client_id
 
-    unmatched = RawCharge.query.filter_by(matched=False, invoiced=False).all()
+    unmatched = RawCharge.query.filter_by(matched=False, invoiced=False, archived=False).all()
 
     matched = 0
     for charge in unmatched:
@@ -440,7 +455,7 @@ def charge_ignore_zero():
     from models import IgnoredKey
     from sqlalchemy import func
     zero_keys = (db.session.query(RawCharge.source_key)
-                 .filter(RawCharge.matched == False, RawCharge.invoiced == False)
+                 .filter(RawCharge.matched == False, RawCharge.invoiced == False, RawCharge.archived == False)
                  .group_by(RawCharge.source_key)
                  .having(func.sum(RawCharge.cost_amount) == 0)
                  .all())
@@ -574,6 +589,26 @@ def invoice_generate():
     clients = Client.query.filter_by(active=True).order_by(Client.name).all()
     return render_template('invoices/generate.html',
         periods=[p[0] for p in periods if p[0]], clients=clients)
+
+@app.route('/invoices/bulk-delete', methods=['POST'])
+@login_required
+def invoices_bulk_delete():
+    ids = request.form.get('ids', '').split(',')
+    deleted = 0
+    for inv_id in ids:
+        try:
+            inv = db.session.get(Invoice, int(inv_id.strip()))
+            if inv and inv.status != 'paid':
+                for line in inv.lines:
+                    RawCharge.query.filter_by(invoice_line_id=line.id).update(
+                        {'invoiced': False, 'invoice_line_id': None})
+                db.session.delete(inv)
+                deleted += 1
+        except (ValueError, TypeError):
+            continue
+    db.session.commit()
+    flash(f'Deleted {deleted} invoice(s).', 'success')
+    return redirect(url_for('invoices'))
 
 @app.route('/invoices/<int:id>')
 @login_required

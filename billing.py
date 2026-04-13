@@ -37,7 +37,7 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
                    .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
                    .filter(RawCharge.client_id == client_id,
                            RawCharge.invoiced == False,
-                           ImportBatch.billing_period == billing_period)
+                           RawCharge.archived == False)
                    .all())
 
         # Use per-client markup, fall back to global default

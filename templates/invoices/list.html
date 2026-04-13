@@ -7,44 +7,100 @@
 {% block content %}
 <div class="card">
   <div class="card-header bg-white">
-    <form class="d-flex gap-2 flex-wrap" method="GET">
-      <select name="period" class="form-select form-select-sm" style="width:140px">
+    <form class="d-flex gap-2 flex-wrap align-items-center" method="GET" id="filterForm">
+      <select name="period" class="form-select form-select-sm" style="width:140px" onchange="this.form.submit()">
         <option value="">All periods</option>
         {% for p in periods %}<option value="{{ p }}" {% if p==selected_period %}selected{% endif %}>{{ p }}</option>{% endfor %}
       </select>
-      <select name="status" class="form-select form-select-sm" style="width:130px">
+      <select name="status" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
         <option value="">All statuses</option>
         <option value="draft" {% if selected_status=="draft" %}selected{% endif %}>Draft</option>
         <option value="sent" {% if selected_status=="sent" %}selected{% endif %}>Sent</option>
         <option value="paid" {% if selected_status=="paid" %}selected{% endif %}>Paid</option>
       </select>
-      <button class="btn btn-sm btn-outline-secondary">Filter</button>
-      <span class="ms-auto my-auto text-muted small">{{ invoices|length }} invoice(s)</span>
+      <span class="text-muted small ms-auto">{{ invoices|length }} invoice(s)</span>
     </form>
   </div>
+
+  <!-- Bulk actions bar -->
+  <div class="px-3 py-2 bg-light border-bottom d-flex align-items-center gap-2" id="bulkBar" style="display:none!important">
+    <input type="checkbox" id="selectAll" class="form-check-input mt-0" onchange="toggleAll(this)">
+    <label for="selectAll" class="small mb-0 me-3">Select all</label>
+    <form method="POST" action="{{ url_for("invoices_bulk_delete") }}" id="bulkDeleteForm" onsubmit="return submitBulk(event)">
+      <input type="hidden" name="ids" id="selectedIds">
+      <button class="btn btn-sm btn-danger">
+        <i class="bi bi-trash me-1"></i>Delete selected (<span id="selectedCount">0</span>)
+      </button>
+    </form>
+  </div>
+
   <div class="table-responsive">
     <table class="table table-hover mb-0">
-      <thead><tr><th>Invoice No</th><th>Client</th><th>Period</th><th>Date</th><th>Due</th><th class="text-end">Total</th><th>Status</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th style="width:36px"></th>
+          <th>Invoice No</th>
+          <th>Client</th>
+          <th>Period</th>
+          <th>Date</th>
+          <th>Due</th>
+          <th class="text-end">Total</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
       {% for inv in invoices %}
       <tr>
+        <td><input type="checkbox" class="form-check-input row-check mt-0" value="{{ inv.id }}" onchange="updateCount()"></td>
         <td class="fw-medium">{{ inv.invoice_number }}</td>
         <td>{{ inv.client.name }}</td>
         <td>{{ inv.billing_period }}</td>
         <td>{{ inv.invoice_date.strftime("%d %b %Y") }}</td>
-        <td class="{% if inv.due_date and inv.due_date < today and inv.status != "paid" %}text-danger{% endif %}">{{ inv.due_date.strftime("%d %b %Y") if inv.due_date else "—" }}</td>
+        <td class="{% if inv.due_date and inv.due_date < today and inv.status != "paid" %}text-danger{% endif %}">
+          {{ inv.due_date.strftime("%d %b %Y") if inv.due_date else "—" }}
+        </td>
         <td class="text-end fw-semibold">£{{ "%.2f"|format(inv.total) }}</td>
         <td><span class="badge badge-{{ inv.status }}">{{ inv.status }}</span></td>
         <td class="d-flex gap-1">
           <a href="{{ url_for("invoice_detail", id=inv.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
           <a href="{{ url_for("invoice_pdf", id=inv.id) }}" class="btn btn-sm btn-outline-danger" target="_blank"><i class="bi bi-filetype-pdf"></i></a>
+          {% if inv.status != "paid" %}
+          <form method="POST" action="{{ url_for("invoice_delete", id=inv.id) }}" onsubmit="return confirm("Delete invoice {{ inv.invoice_number }}?")">
+            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="text-muted text-center py-4">No invoices found</td></tr>
+      <tr><td colspan="9" class="text-muted text-center py-4">No invoices found</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleAll(cb) {
+  document.querySelectorAll(".row-check").forEach(c => c.checked = cb.checked);
+  updateCount();
+}
+function updateCount() {
+  const n = document.querySelectorAll(".row-check:checked").length;
+  document.getElementById("selectedCount").textContent = n;
+  document.getElementById("bulkBar").style.display = n > 0 ? "flex" : "none";
+  const sa = document.getElementById("selectAll");
+  const total = document.querySelectorAll(".row-check").length;
+  sa.indeterminate = n > 0 && n < total;
+  sa.checked = n === total && total > 0;
+}
+function submitBulk(e) {
+  const checked = document.querySelectorAll(".row-check:checked");
+  if (!checked.length) { e.preventDefault(); return false; }
+  if (!confirm("Delete " + checked.length + " invoice(s)? This cannot be undone.")) { e.preventDefault(); return false; }
+  document.getElementById("selectedIds").value = Array.from(checked).map(c => c.value).join(",");
+  return true;
+}
+</script>
 {% endblock %}

@@ -88,6 +88,7 @@ class RawCharge(db.Model):
     client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=True)
     matched = db.Column(db.Boolean, default=False)
     invoiced = db.Column(db.Boolean, default=False)
+    archived = db.Column(db.Boolean, default=False)  # retired by newer import of same type
     invoice_line_id = db.Column(db.Integer, db.ForeignKey('invoice_lines.id'), nullable=True)
     raw_json = db.Column(db.Text)
 

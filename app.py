@@ -555,14 +555,8 @@ def invoice_generate():
         if not client_ids:
             # all clients with unmatched charges in period
             from sqlalchemy import distinct
-            cids = (db.session.query(distinct(RawCharge.client_id))
-                    .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
-                    .filter(ImportBatch.billing_period == period,
-                            RawCharge.matched == True,
-                            RawCharge.invoiced == False,
-                            RawCharge.client_id.isnot(None))
-                    .all())
-            client_ids = [c[0] for c in cids]
+                # All active clients get an invoice
+            client_ids = [c.id for c in Client.query.filter_by(active=True).all()]
 
         run = InvoiceRun(billing_period=period, created_by=current_user.id)
         db.session.add(run)
@@ -752,7 +746,7 @@ def billing_summary():
         total_cost = data['total_cost']
         total_sell = total_cost * markup
         margin = total_sell - total_cost
-        margin_pct = (margin / total_sell * 100) if total_sell else 0
+        margin_pct = (margin / total_sell * 100) if total_sell else client.markup_pct
         rows.append({
             'client': client,
             'cats': {c: data[c] for c in cats},
@@ -769,10 +763,7 @@ def billing_summary():
         'total_sell': sum(r['total_sell'] for r in rows),
         'margin': sum(r['margin'] for r in rows),
     }
-    if grand['total_sell']:
-        grand['margin_pct'] = grand['margin'] / grand['total_sell'] * 100
-    else:
-        grand['margin_pct'] = 0
+    grand['margin_pct'] = (grand['margin'] / grand['total_sell'] * 100) if grand['total_sell'] else 0
 
     return render_template('summary.html', period=period, period_list=period_list,
                            rows=rows, grand=grand, cats=cats, unmatched=unmatched)
@@ -900,7 +891,7 @@ def summary_export_excel():
         total_cost = data['total_cost']
         total_sell = total_cost * markup
         margin = total_sell - total_cost
-        margin_pct = (margin / total_sell * 100) if total_sell else 0
+        margin_pct = (margin / total_sell * 100) if total_sell else client.markup_pct
 
         data_cell(ws.cell(ri, 1), client.name, bold=True, bg=bg)
         data_cell(ws.cell(ri, 2), client.account_ref or '', bg=bg, align='center')

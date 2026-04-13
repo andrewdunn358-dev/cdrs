@@ -25,31 +25,27 @@ FILE_TYPE_TO_CATEGORY = {
 
 
 def generate_invoices(billing_period, client_ids, session, run_id, created_by, settings):
-    """
-    For each client in client_ids, gather unmatched+matched charges for billing_period,
-    group them, apply markup, create Invoice + InvoiceLines.
-    Returns list of created Invoice objects.
-    """
-    from models import RawCharge, Invoice, InvoiceLine, ImportBatch
+    from models import RawCharge, Invoice, InvoiceLine, ImportBatch, Client
     invoices_created = []
 
     for client_id in client_ids:
+        client = session.get(Client, client_id)
+        if not client:
+            continue
+
         charges = (session.query(RawCharge)
                    .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
                    .filter(RawCharge.client_id == client_id,
                            RawCharge.invoiced == False,
                            ImportBatch.billing_period == billing_period)
                    .all())
-        if not charges:
-            continue
 
-        markup = 1.0 + (settings.default_markup_pct / 100.0)
+        # Use per-client markup, fall back to global default
+        markup = 1.0 + (client.markup_pct / 100.0)
         vat = settings.default_vat_rate / 100.0
 
-        # Group by (category, product_name)
-        groups = defaultdict(lambda: {'cost': 0.0, 'qty': 0, 'duration': 0, 'charge_ids': []})
+        groups = defaultdict(lambda: {'cost': 0.0, 'qty': 0, 'charge_ids': []})
         for c in charges:
-            # Determine category from batch file_type
             from models import ImportBatch as IB
             batch = session.get(IB, c.batch_id)
             cat = FILE_TYPE_TO_CATEGORY.get(batch.file_type if batch else '', 'Other')
@@ -57,7 +53,6 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
             key = (cat, c.product_name or 'Service')
             groups[key]['cost'] += net_cost
             groups[key]['qty'] += c.quantity
-            groups[key]['duration'] += c.call_duration or 0
             groups[key]['charge_ids'].append(c.id)
 
         lines = []
@@ -66,8 +61,6 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
             for (g_cat, g_name), g in sorted(groups.items()):
                 if g_cat != cat:
                     continue
-                if g['cost'] == 0.0 and g_name != 'Service':
-                    continue  # skip zero lines (included services)
                 unit_cost = g['cost']
                 unit_price = round(unit_cost * markup, 4)
                 lines.append({
@@ -83,8 +76,19 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
                 })
                 sort_order += 1
 
+        # Always generate an invoice — zero line if nothing to bill
         if not lines:
-            continue
+            lines.append({
+                'category': 'Other',
+                'description': 'Hosted Voice & Communications Services',
+                'quantity': 1,
+                'unit_cost': 0.0,
+                'unit_price': 0.0,
+                'line_total': 0.0,
+                'vat_rate': 20.0,
+                'sort_order': 0,
+                'charge_ids': [],
+            })
 
         subtotal = round(sum(l['line_total'] for l in lines), 2)
         vat_amount = round(subtotal * vat, 2)
@@ -125,7 +129,6 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
             )
             session.add(il)
             session.flush()
-            # Mark charges as invoiced
             from models import RawCharge as _RC
             for cid in l['charge_ids']:
                 rc = session.get(_RC, cid)

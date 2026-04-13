@@ -124,11 +124,25 @@ def _parse_gamma_calls(content, file_type):
             except Exception:
                 pass
 
-            # source_key: endpoint ID for SIP, CLI for others
-            source_key = row[2].strip().lstrip('+')
-            # also strip leading + from CLIs to normalise
-            if source_key.startswith('44'):
-                source_key = '0' + source_key[2:]
+            # For SIP calls use the DDI (col 15) as source key so individual
+            # clients on shared trunks match correctly via their phone numbers.
+            # Fall back to endpoint ID (col 2) if DDI is empty.
+            ddi_raw = row[15].strip() if len(row) > 15 else ''
+            if ddi_raw.startswith('+44'):
+                source_key = '0' + ddi_raw[3:]
+            elif ddi_raw.startswith('+'):
+                source_key = ddi_raw  # international
+            elif ddi_raw:
+                source_key = ddi_raw
+            else:
+                # No DDI — fall back to endpoint ID (col 2)
+                source_key = row[2].strip()
+                if source_key.startswith('+44'):
+                    source_key = '0' + source_key[3:]
+                elif source_key.startswith('+'):
+                    pass
+                elif source_key.startswith('44') and len(source_key) > 10:
+                    source_key = '0' + source_key[2:]
 
             # normalise destination: +44xxxxxxx -> 0xxxxxxx
             dest_raw = row[3].strip()

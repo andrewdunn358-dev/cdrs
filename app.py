@@ -583,6 +583,285 @@ def user_delete(id):
     return redirect(url_for('settings'))
 
 
+
+# ── Billing Summary ───────────────────────────────────────────────────────────
+
+@app.route('/summary')
+@login_required
+def billing_summary():
+    from collections import defaultdict
+    from models import IgnoredKey
+
+    period = request.args.get('period', '')
+    periods = (db.session.query(ImportBatch.billing_period)
+               .distinct().order_by(ImportBatch.billing_period.desc()).all())
+    period_list = [p[0] for p in periods if p[0]]
+
+    if not period and period_list:
+        period = period_list[0]
+
+    if not period:
+        return render_template('summary.html', period=period, period_list=period_list,
+                               rows=[], grand=None)
+
+    ignored_keys = set(i.source_key for i in IgnoredKey.query.all())
+
+    # Get all matched charges for this period
+    charges = (RawCharge.query
+               .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
+               .filter(ImportBatch.billing_period == period,
+                       RawCharge.matched == True,
+                       RawCharge.client_id.isnot(None))
+               .all())
+
+    # Unmatched count for this period (excluding ignored)
+    unmatched = (RawCharge.query
+                 .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
+                 .filter(ImportBatch.billing_period == period,
+                         RawCharge.matched == False,
+                         ~RawCharge.source_key.in_(ignored_keys) if ignored_keys else True)
+                 .count())
+
+    # Category mapping
+    FILE_CAT = {
+        'gamma_calls_sip': 'Calls', 'gamma_calls_div': 'Calls',
+        'gamma_calls_ftc': 'Calls', 'gamma_calls_ibrs': 'Calls',
+        'gamma_calls_nts': 'Calls', 'nasstar_cdr': 'Calls',
+        'gamma_ipdc': 'SIP Trunks', 'gamma_bb': 'Broadband',
+        'gamma_ces': 'Leased Lines', 'gamma_wlr': 'WLR',
+        'gamma_inb': 'Inbound',
+    }
+
+    # Build per-client summary
+    client_data = defaultdict(lambda: {
+        'Calls': 0.0, 'Broadband': 0.0, 'Leased Lines': 0.0,
+        'SIP Trunks': 0.0, 'WLR': 0.0, 'Inbound': 0.0, 'Other': 0.0,
+        'total_cost': 0.0
+    })
+
+    batch_cache = {}
+    for ch in charges:
+        if ch.batch_id not in batch_cache:
+            batch_cache[ch.batch_id] = db.session.get(ImportBatch, ch.batch_id)
+        batch = batch_cache[ch.batch_id]
+        cat = FILE_CAT.get(batch.file_type if batch else '', 'Other')
+        net = ch.cost_amount * ch.quantity - ch.credit_amount
+        client_data[ch.client_id][cat] += net
+        client_data[ch.client_id]['total_cost'] += net
+
+    # Build rows with client info
+    rows = []
+    cats = ['Calls', 'Broadband', 'Leased Lines', 'SIP Trunks', 'WLR', 'Inbound', 'Other']
+    for client_id, data in sorted(client_data.items(),
+                                   key=lambda x: (db.session.get(Client, x[0]).name if db.session.get(Client, x[0]) else '')):
+        client = db.session.get(Client, client_id)
+        if not client:
+            continue
+        markup = 1 + client.markup_pct / 100
+        total_cost = data['total_cost']
+        total_sell = total_cost * markup
+        margin = total_sell - total_cost
+        margin_pct = (margin / total_sell * 100) if total_sell else 0
+        rows.append({
+            'client': client,
+            'cats': {c: data[c] for c in cats},
+            'total_cost': total_cost,
+            'total_sell': total_sell,
+            'margin': margin,
+            'margin_pct': margin_pct,
+        })
+
+    # Grand totals
+    grand = {
+        'cats': {c: sum(r['cats'][c] for r in rows) for c in cats},
+        'total_cost': sum(r['total_cost'] for r in rows),
+        'total_sell': sum(r['total_sell'] for r in rows),
+        'margin': sum(r['margin'] for r in rows),
+    }
+    if grand['total_sell']:
+        grand['margin_pct'] = grand['margin'] / grand['total_sell'] * 100
+    else:
+        grand['margin_pct'] = 0
+
+    return render_template('summary.html', period=period, period_list=period_list,
+                           rows=rows, grand=grand, cats=cats, unmatched=unmatched)
+
+
+@app.route('/summary/export-excel')
+@login_required
+def summary_export_excel():
+    """Export billing summary as Excel for accounts."""
+    from collections import defaultdict
+    from models import IgnoredKey
+    import io
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        flash('openpyxl not available', 'danger')
+        return redirect(url_for('billing_summary'))
+
+    period = request.args.get('period', '')
+    if not period:
+        return redirect(url_for('billing_summary'))
+
+    ignored_keys = set(i.source_key for i in IgnoredKey.query.all())
+
+    charges = (RawCharge.query
+               .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
+               .filter(ImportBatch.billing_period == period,
+                       RawCharge.matched == True,
+                       RawCharge.client_id.isnot(None))
+               .all())
+
+    FILE_CAT = {
+        'gamma_calls_sip': 'Calls', 'gamma_calls_div': 'Calls',
+        'gamma_calls_ftc': 'Calls', 'gamma_calls_ibrs': 'Calls',
+        'gamma_calls_nts': 'Calls', 'nasstar_cdr': 'Calls',
+        'gamma_ipdc': 'SIP Trunks', 'gamma_bb': 'Broadband',
+        'gamma_ces': 'Leased Lines', 'gamma_wlr': 'WLR',
+        'gamma_inb': 'Inbound',
+    }
+
+    client_data = defaultdict(lambda: {
+        'Calls': 0.0, 'Broadband': 0.0, 'Leased Lines': 0.0,
+        'SIP Trunks': 0.0, 'WLR': 0.0, 'Inbound': 0.0, 'Other': 0.0,
+        'total_cost': 0.0
+    })
+    batch_cache = {}
+    for ch in charges:
+        if ch.batch_id not in batch_cache:
+            batch_cache[ch.batch_id] = db.session.get(ImportBatch, ch.batch_id)
+        batch = batch_cache[ch.batch_id]
+        cat = FILE_CAT.get(batch.file_type if batch else '', 'Other')
+        net = ch.cost_amount * ch.quantity - ch.credit_amount
+        client_data[ch.client_id][cat] += net
+        client_data[ch.client_id]['total_cost'] += net
+
+    cats = ['Calls', 'Broadband', 'Leased Lines', 'SIP Trunks', 'WLR', 'Inbound', 'Other']
+
+    # Build Excel
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f'Summary {period}'
+    ws.sheet_view.showGridLines = False
+
+    DARK = 'FF1E3A5F'
+    MID  = 'FF2E6DA4'
+    LGREY= 'FFF2F5F8'
+    WHITE= 'FFFFFFFF'
+    GREEN= 'FF059669'
+    thin = Side(style='thin', color='FFE2E6EA')
+    brd  = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    def hdr_cell(cell, val, bg=DARK, fg='FFFFFFFF', bold=True, align='center'):
+        cell.value = val
+        cell.font = Font(name='Arial', bold=bold, color=fg, size=9)
+        cell.fill = PatternFill('solid', fgColor=bg)
+        cell.alignment = Alignment(horizontal=align, vertical='center', wrap_text=True)
+        cell.border = brd
+
+    def data_cell(cell, val, fmt=None, bold=False, bg=WHITE, align='left'):
+        cell.value = val
+        cell.font = Font(name='Arial', bold=bold, size=9)
+        cell.fill = PatternFill('solid', fgColor=bg)
+        cell.alignment = Alignment(horizontal=align, vertical='center')
+        cell.border = brd
+        if fmt:
+            cell.number_format = fmt
+
+    # Title
+    ws.merge_cells('A1:N1')
+    ws['A1'].value = f'Billing Summary — {period}'
+    ws['A1'].font = Font(name='Arial', bold=True, size=14, color='FFFFFFFF')
+    ws['A1'].fill = PatternFill('solid', fgColor=DARK)
+    ws['A1'].alignment = Alignment(horizontal='left', vertical='center', indent=1)
+    ws.row_dimensions[1].height = 30
+
+    ws.merge_cells('A2:N2')
+    ws['A2'].value = f'Generated by Synthesis IT Billing System'
+    ws['A2'].font = Font(name='Arial', size=8, color='FFAAAAAA')
+    ws['A2'].fill = PatternFill('solid', fgColor=DARK)
+    ws['A2'].alignment = Alignment(horizontal='left', vertical='center', indent=1)
+    ws.row_dimensions[2].height = 16
+
+    # Headers row 3
+    headers = ['Client', 'Account Ref'] + cats + ['Total Cost', 'Total Sell', 'Margin £', 'Margin %']
+    col_widths = [28, 14] + [12]*7 + [12, 12, 12, 10]
+    for i, (h, w) in enumerate(zip(headers, col_widths), 1):
+        hdr_cell(ws.cell(3, i), h, bg=MID)
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.row_dimensions[3].height = 30
+
+    # Data rows
+    rows_out = sorted(client_data.items(),
+                      key=lambda x: (db.session.get(Client, x[0]).name if db.session.get(Client, x[0]) else ''))
+    grand = {c: 0.0 for c in cats}
+    grand.update({'total_cost': 0.0, 'total_sell': 0.0, 'margin': 0.0})
+
+    for ri, (client_id, data) in enumerate(rows_out, 4):
+        client = db.session.get(Client, client_id)
+        if not client:
+            continue
+        bg = WHITE if ri % 2 == 0 else LGREY
+        markup = 1 + client.markup_pct / 100
+        total_cost = data['total_cost']
+        total_sell = total_cost * markup
+        margin = total_sell - total_cost
+        margin_pct = (margin / total_sell * 100) if total_sell else 0
+
+        data_cell(ws.cell(ri, 1), client.name, bold=True, bg=bg)
+        data_cell(ws.cell(ri, 2), client.account_ref or '', bg=bg, align='center')
+        for ci, cat in enumerate(cats, 3):
+            v = data[cat]
+            data_cell(ws.cell(ri, ci), v if v else None, fmt='#,##0.0000', bg=bg, align='right')
+        data_cell(ws.cell(ri, 10), total_cost, fmt='#,##0.00', bold=True, bg=bg, align='right')
+        data_cell(ws.cell(ri, 11), total_sell, fmt='#,##0.00', bold=True, bg=bg, align='right')
+        data_cell(ws.cell(ri, 12), margin, fmt='#,##0.00', bg=bg, align='right')
+        data_cell(ws.cell(ri, 13), margin_pct/100, fmt='0.0%', bg=bg, align='right')
+
+        for cat in cats:
+            grand[cat] += data[cat]
+        grand['total_cost'] += total_cost
+        grand['total_sell'] += total_sell
+        grand['margin'] += margin
+
+    # Grand total row
+    gr = len(rows_out) + 4
+    ws.row_dimensions[gr].height = 18
+    hdr_cell(ws.cell(gr, 1), 'GRAND TOTAL', bg=DARK, align='left')
+    hdr_cell(ws.cell(gr, 2), '', bg=DARK)
+    for ci, cat in enumerate(cats, 3):
+        v = grand[cat]
+        c = ws.cell(gr, ci)
+        c.value = v if v else None
+        c.font = Font(name='Arial', bold=True, color='FFFFFFFF', size=9)
+        c.fill = PatternFill('solid', fgColor=DARK)
+        c.alignment = Alignment(horizontal='right', vertical='center')
+        c.border = brd
+        c.number_format = '#,##0.0000'
+    for ci, (val, fmt) in enumerate([(grand['total_cost'],'#,##0.00'),
+                                      (grand['total_sell'],'#,##0.00'),
+                                      (grand['margin'],'#,##0.00'),
+                                      ((grand['margin']/grand['total_sell']*100/100) if grand['total_sell'] else 0,'0.0%')], 10):
+        c = ws.cell(gr, ci)
+        c.value = val
+        c.font = Font(name='Arial', bold=True, color='FFFFFFFF', size=9)
+        c.fill = PatternFill('solid', fgColor=DARK)
+        c.alignment = Alignment(horizontal='right', vertical='center')
+        c.border = brd
+        c.number_format = fmt
+
+    ws.freeze_panes = 'A4'
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name=f'Billing_Summary_{period}.xlsx')
+
+
 # ── API helpers ───────────────────────────────────────────────────────────────
 
 @app.route('/api/unmatched-keys')

@@ -114,7 +114,7 @@
           {% for c in calls %}
           <tr>
             <td class="small">{{ c.call_date.strftime("%d/%m/%Y") if c.call_date else "—" }}</td>
-            <td class="small text-muted font-monospace">{{ c.description.split("(")[1].replace(")","").replace("s","") if "(" in (c.description or "") else "—" }}</td>
+            <td class="small text-muted font-monospace">{{ c.description or "—" }}</td>
             <td class="font-monospace" style="font-size:.82rem">{{ c.destination or "—" }}</td>
             <td class="text-muted" style="font-size:.78rem">{{ (c.product_name or "—").replace("Call — ","")[:30] }}</td>
             <td class="text-end small">{{ fmt_duration(c.call_duration) }}</td>

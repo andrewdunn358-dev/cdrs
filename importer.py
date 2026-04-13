@@ -130,18 +130,28 @@ def _parse_gamma_calls(content, file_type):
             if source_key.startswith('44'):
                 source_key = '0' + source_key[2:]
 
-            dest = row[3].strip()
+            # normalise destination: +44xxxxxxx -> 0xxxxxxx
+            dest_raw = row[3].strip()
+            if dest_raw.startswith('+44'):
+                dest = '0' + dest_raw[3:]
+            elif dest_raw.startswith('+'):
+                dest = dest_raw  # international, keep as-is
+            else:
+                dest = dest_raw
+
+            # call time is in col 5
+            call_time = row[5].strip() if len(row) > 5 else ''
             desc = row[9].strip() if len(row) > 9 else ''
 
             records.append({
                 'source_key': source_key,
                 'product_name': f"Call — {desc}" if desc else f"Call — {row[10].strip() if len(row)>10 else ''}",
                 'charge_type': 'Call',
-                'billing_period': '',  # derived from call dates on grouping
+                'billing_period': '',
                 'call_date': call_date,
                 'call_duration': duration,
                 'destination': dest,
-                'description': f"{desc} to {dest} ({row[6]}s)" if dest else f"Call {duration}s",
+                'description': call_time,  # store call time here for display
                 'cost_amount': cost,
                 'credit_amount': 0.0,
                 'quantity': 1,
@@ -193,6 +203,15 @@ def _parse_nasstar_cdr(content, filename):
             except Exception:
                 pass
 
+            call_time = ''
+            try:
+                call_time = datetime.strptime(parts[2].strip(), '%d/%m/%y %H:%M:%S').strftime('%H:%M:%S')
+            except Exception:
+                pass
+
+            dest_raw = parts[3].strip() if len(parts) > 3 else ''
+            dest = dest_raw  # Nasstar destinations are already in 07xxx / 01xxx format
+
             dest_type = parts[5].strip() if len(parts) > 5 else ''
             desc_map = {
                 'UKGEO': 'UK Geographic', 'UKN': 'UK National',
@@ -209,8 +228,8 @@ def _parse_nasstar_cdr(content, filename):
                 'billing_period': '',
                 'call_date': call_dt,
                 'call_duration': duration,
-                'destination': parts[3].strip() if len(parts) > 3 else '',
-                'description': f"{description} ({duration}s)",
+                'destination': dest,
+                'description': call_time,
                 'cost_amount': cost,
                 'credit_amount': 0.0,
                 'quantity': 1,

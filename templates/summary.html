@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Billing Summary{% endblock %}
+{% block page_title %}Billing Summary{% endblock %}
+{% block topbar_actions %}
+  {% if period %}
+  <a href="{{ url_for("summary_export_excel") }}?period={{ period }}" class="btn btn-sm btn-success">
+    <i class="bi bi-file-earmark-excel me-1"></i>Export to Excel
+  </a>
+  {% endif %}
+{% endblock %}
+{% block content %}
+
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form class="d-flex align-items-center gap-3" method="GET">
+      <label class="fw-semibold mb-0">Billing Period:</label>
+      <select name="period" class="form-select form-select-sm" style="width:160px" onchange="this.form.submit()">
+        {% for p in period_list %}
+        <option value="{{ p }}" {% if p == period %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+      {% if unmatched is defined and unmatched > 0 %}
+      <a href="{{ url_for("charges") }}?unmatched=1" class="text-warning small ms-2">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ unmatched }} unmatched charge(s) not included
+      </a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{% if rows %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+      <thead>
+        <tr>
+          <th style="min-width:180px">Client</th>
+          {% for cat in cats %}
+          <th class="text-end">{{ cat }}</th>
+          {% endfor %}
+          <th class="text-end">Total Cost</th>
+          <th class="text-end">Total Sell</th>
+          <th class="text-end">Margin</th>
+          <th class="text-end">Margin %</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in rows %}
+      <tr onclick="location.href='{{ url_for("client_detail", id=row.client.id) }}'" style="cursor:pointer">
+        <td class="fw-semibold">{{ row.client.name }}</td>
+        {% for cat in cats %}
+        <td class="text-end {% if row.cats[cat] == 0 %}text-muted{% endif %}">
+          {% if row.cats[cat] != 0 %}£{{ "%.2f"|format(row.cats[cat]) }}{% else %}—{% endif %}
+        </td>
+        {% endfor %}
+        <td class="text-end text-muted">£{{ "%.2f"|format(row.total_cost) }}</td>
+        <td class="text-end fw-semibold">£{{ "%.2f"|format(row.total_sell) }}</td>
+        <td class="text-end text-success">£{{ "%.2f"|format(row.margin) }}</td>
+        <td class="text-end">
+          <span class="badge {% if row.margin_pct >= 25 %}bg-success{% elif row.margin_pct >= 15 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+            {{ "%.1f"|format(row.margin_pct) }}%
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="fw-bold" style="background:#1e3a5f;color:#fff">
+          <td>TOTAL — {{ rows|length }} client(s)</td>
+          {% for cat in cats %}
+          <td class="text-end">
+            {% if grand.cats[cat] != 0 %}£{{ "%.2f"|format(grand.cats[cat]) }}{% else %}—{% endif %}
+          </td>
+          {% endfor %}
+          <td class="text-end">£{{ "%.2f"|format(grand.total_cost) }}</td>
+          <td class="text-end">£{{ "%.2f"|format(grand.total_sell) }}</td>
+          <td class="text-end">£{{ "%.2f"|format(grand.margin) }}</td>
+          <td class="text-end">{{ "%.1f"|format(grand.margin_pct) }}%</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+{% elif period %}
+<div class="card">
+  <div class="card-body text-muted text-center py-5">
+    No matched charges found for {{ period }}.
+    <a href="{{ url_for("import_upload") }}" class="d-block mt-2">Import files for this period</a>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body text-muted text-center py-5">No billing periods found. Import files first.</div>
+</div>
+{% endif %}
+{% endblock %}

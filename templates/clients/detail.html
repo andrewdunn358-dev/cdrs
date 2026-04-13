@@ -6,6 +6,7 @@
 {% endblock %}
 {% block content %}
 <div class="row g-3">
+  <!-- Left column — account details + identifiers -->
   <div class="col-lg-4">
     <div class="card mb-3">
       <div class="card-header bg-white fw-semibold">Account Details</div>
@@ -59,60 +60,84 @@
     </div>
   </div>
 
+  <!-- Right column — charges + invoices -->
   <div class="col-lg-8">
-    <!-- Pending Charges Summary -->
+
+    {% if rentals or calls %}
+    <!-- Rental / fixed charges summary -->
+    {% if rentals %}
     <div class="card mb-3">
       <div class="card-header bg-white d-flex align-items-center justify-content-between">
-        <span class="fw-semibold">Pending Charges</span>
-        {% if period_totals %}
-        <div class="d-flex gap-3">
-          {% for period, totals in period_totals.items()|sort(reverse=true) %}
-          <span class="small text-muted">{{ period }}: <strong class="text-dark">£{{ "%.2f"|format(totals.sell) }}</strong> sell</span>
-          {% endfor %}
-        </div>
-        {% endif %}
+        <span class="fw-semibold">Recurring & Fixed Charges</span>
+        <span class="text-muted small">Sell: <strong class="text-dark">£{{ "%.2f"|format(rental_sell) }}</strong></span>
       </div>
-
-      {% if charge_summary %}
-      {% set ns = namespace(current_period="") %}
       <div class="table-responsive">
         <table class="table table-sm table-hover mb-0">
-          <thead>
-            <tr>
-              <th>Period</th>
-              <th>Product / Description</th>
-              <th class="text-center">Type</th>
-              <th class="text-center">Count</th>
-              <th class="text-end">Cost</th>
-              <th class="text-end">Sell ({{ client.markup_pct }}%)</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Period</th><th>Product</th><th class="text-center">Type</th><th class="text-end">Cost</th><th class="text-end">Sell</th></tr></thead>
           <tbody>
-          {% for cs in charge_summary %}
-            {% if cs.period != ns.current_period %}
-              {% set ns.current_period = cs.period %}
-              <tr class="table-light">
-                <td colspan="4" class="fw-semibold small text-uppercase" style="letter-spacing:.4px">{{ cs.period }}</td>
-                <td class="text-end fw-semibold small">£{{ "%.2f"|format(period_totals[cs.period].cost) }}</td>
-                <td class="text-end fw-semibold small">£{{ "%.2f"|format(period_totals[cs.period].sell) }}</td>
-              </tr>
-            {% endif %}
-            <tr>
-              <td></td>
-              <td style="font-size:.82rem">{{ cs.product[:55] }}</td>
-              <td class="text-center"><span class="badge bg-light text-dark">{{ cs.charge_type }}</span></td>
-              <td class="text-center text-muted small">{{ cs.qty }}</td>
-              <td class="text-end text-muted small">£{{ "%.4f"|format(cs.cost) }}</td>
-              <td class="text-end fw-medium">£{{ "%.2f"|format(cs.sell) }}</td>
-            </tr>
+          {% for r in rentals %}
+          <tr>
+            <td class="text-muted small">{{ r.period }}</td>
+            <td style="font-size:.85rem">{{ r.product[:55] }}</td>
+            <td class="text-center"><span class="badge bg-light text-dark">{{ r.charge_type }}</span></td>
+            <td class="text-end text-muted small">£{{ "%.4f"|format(r.cost) }}</td>
+            <td class="text-end fw-medium">£{{ "%.2f"|format(r.sell) }}</td>
+          </tr>
           {% endfor %}
           </tbody>
         </table>
       </div>
-      {% else %}
-      <div class="p-3 text-muted text-center">No pending charges</div>
-      {% endif %}
     </div>
+    {% endif %}
+
+    <!-- Itemised calls -->
+    {% if calls %}
+    <div class="card mb-3">
+      <div class="card-header bg-white d-flex align-items-center justify-content-between">
+        <span class="fw-semibold">Itemised Calls</span>
+        <span class="text-muted small">{{ calls|length }} calls &nbsp;·&nbsp; Cost: £{{ "%.4f"|format(call_cost) }} &nbsp;·&nbsp; Sell: <strong class="text-dark">£{{ "%.2f"|format(call_sell) }}</strong></span>
+      </div>
+      <div class="table-responsive" style="max-height:500px;overflow-y:auto">
+        <table class="table table-sm table-hover mb-0">
+          <thead style="position:sticky;top:0;z-index:1">
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Called Number</th>
+              <th>Description</th>
+              <th class="text-end">Duration</th>
+              <th class="text-end">Cost</th>
+              <th class="text-end">Sell</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for c in calls %}
+          <tr>
+            <td class="small">{{ c.call_date.strftime("%d/%m/%Y") if c.call_date else "—" }}</td>
+            <td class="small text-muted font-monospace">{{ c.description.split("(")[1].replace(")","").replace("s","") if "(" in (c.description or "") else "—" }}</td>
+            <td class="font-monospace" style="font-size:.82rem">{{ c.destination or "—" }}</td>
+            <td class="text-muted" style="font-size:.78rem">{{ (c.product_name or "—").replace("Call — ","")[:30] }}</td>
+            <td class="text-end small">{{ fmt_duration(c.call_duration) }}</td>
+            <td class="text-end text-muted small">£{{ "%.4f"|format(c.cost_amount) }}</td>
+            <td class="text-end fw-medium small">£{{ "%.4f"|format(c.cost_amount * (1 + client.markup_pct/100)) }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+          <tfoot class="table-light">
+            <tr>
+              <td colspan="5" class="fw-semibold small">Total calls</td>
+              <td class="text-end fw-semibold small">£{{ "%.4f"|format(call_cost) }}</td>
+              <td class="text-end fw-semibold">£{{ "%.2f"|format(call_sell) }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="card mb-3"><div class="card-body text-muted text-center py-4">No pending charges</div></div>
+    {% endif %}
 
     <!-- Invoices -->
     <div class="card">

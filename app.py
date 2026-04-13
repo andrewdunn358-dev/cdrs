@@ -125,44 +125,55 @@ def client_detail(id):
     c = db.get_or_404(Client, id)
     invoices = Invoice.query.filter_by(client_id=id).order_by(Invoice.created_at.desc()).limit(20).all()
 
-    # Get all uninvoiced charges
     all_charges = RawCharge.query.filter_by(client_id=id, invoiced=False).all()
 
-    # Group by period + category + product for summary
-    summary = defaultdict(lambda: {'cost': 0.0, 'qty': 0, 'charge_type': ''})
+    # Split into calls (itemised) and rentals (summarised)
+    calls = []
+    rental_summary = defaultdict(lambda: {'cost': 0.0, 'credit': 0.0, 'qty': 0, 'charge_type': '', 'period': ''})
+
     for ch in all_charges:
-        batch = db.session.get(ImportBatch, ch.batch_id)
-        file_type = batch.file_type if batch else ''
-        # Summarise calls by destination type, rentals by product name
         if ch.charge_type == 'Call':
-            key = (ch.billing_period, 'Call', ch.product_name or 'Call')
+            calls.append(ch)
         else:
             key = (ch.billing_period, ch.charge_type, ch.product_name or 'Service')
-        summary[key]['cost'] += ch.cost_amount * ch.quantity - ch.credit_amount
-        summary[key]['qty'] += 1
-        summary[key]['charge_type'] = ch.charge_type
+            rental_summary[key]['cost'] += ch.cost_amount * ch.quantity
+            rental_summary[key]['credit'] += ch.credit_amount
+            rental_summary[key]['qty'] += ch.quantity
+            rental_summary[key]['charge_type'] = ch.charge_type
+            rental_summary[key]['period'] = ch.billing_period
 
-    # Convert to list sorted by period desc, then charge type, then product
-    charge_summary = []
-    for (period, ctype, product), vals in sorted(summary.items(), key=lambda x: (x[0][0], x[0][1], x[0][2])):
-        sell = vals['cost'] * (1 + c.markup_pct / 100)
-        charge_summary.append({
+    # Sort calls by date/time
+    calls.sort(key=lambda x: (x.billing_period, x.call_date or '', str(x.id)))
+
+    rentals = []
+    for (period, ctype, product), vals in sorted(rental_summary.items()):
+        net = vals['cost'] - vals['credit']
+        rentals.append({
             'period': period,
             'charge_type': ctype,
             'product': product,
             'qty': vals['qty'],
-            'cost': vals['cost'],
-            'sell': sell,
+            'cost': net,
+            'sell': net * (1 + c.markup_pct / 100),
         })
 
-    # Period totals
-    period_totals = defaultdict(lambda: {'cost': 0.0, 'sell': 0.0})
-    for cs in charge_summary:
-        period_totals[cs['period']]['cost'] += cs['cost']
-        period_totals[cs['period']]['sell'] += cs['sell']
+    # Totals
+    call_cost = sum(ch.cost_amount for ch in calls)
+    rental_cost = sum(r['cost'] for r in rentals)
+    call_sell = call_cost * (1 + c.markup_pct / 100)
+    rental_sell = rental_cost * (1 + c.markup_pct / 100)
+
+    def fmt_duration(secs):
+        if not secs:
+            return '—'
+        m, s = divmod(int(secs), 60)
+        return f"{m}m {s:02d}s"
 
     return render_template('clients/detail.html', client=c, invoices=invoices,
-                           charge_summary=charge_summary, period_totals=dict(period_totals))
+                           calls=calls, rentals=rentals,
+                           call_cost=call_cost, rental_cost=rental_cost,
+                           call_sell=call_sell, rental_sell=rental_sell,
+                           fmt_duration=fmt_duration)
 
 @app.route('/clients/<int:id>/edit', methods=['GET', 'POST'])
 @login_required

@@ -58,29 +58,63 @@
       </div>
     </div>
   </div>
+
   <div class="col-lg-8">
+    <!-- Pending Charges Summary -->
     <div class="card mb-3">
-      <div class="card-header bg-white fw-semibold">Pending Charges</div>
+      <div class="card-header bg-white d-flex align-items-center justify-content-between">
+        <span class="fw-semibold">Pending Charges</span>
+        {% if period_totals %}
+        <div class="d-flex gap-3">
+          {% for period, totals in period_totals.items()|sort(reverse=true) %}
+          <span class="small text-muted">{{ period }}: <strong class="text-dark">£{{ "%.2f"|format(totals.sell) }}</strong> sell</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% if charge_summary %}
+      {% set ns = namespace(current_period="") %}
       <div class="table-responsive">
         <table class="table table-sm table-hover mb-0">
-          <thead><tr><th>Period</th><th>Source Key</th><th>Product</th><th>Type</th><th class="text-end">Cost</th><th class="text-end">Sell</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Product / Description</th>
+              <th class="text-center">Type</th>
+              <th class="text-center">Count</th>
+              <th class="text-end">Cost</th>
+              <th class="text-end">Sell ({{ client.markup_pct }}%)</th>
+            </tr>
+          </thead>
           <tbody>
-          {% for c in charges %}
-          <tr>
-            <td>{{ c.billing_period }}</td>
-            <td class="text-muted" style="font-size:.73rem">{{ c.source_key }}</td>
-            <td style="font-size:.82rem">{{ (c.product_name or "—")[:45] }}</td>
-            <td><span class="badge bg-light text-dark">{{ c.charge_type }}</span></td>
-            <td class="text-end">£{{ "%.4f"|format(c.cost_amount * c.quantity) }}</td>
-            <td class="text-end fw-medium">£{{ "%.2f"|format(c.cost_amount * c.quantity * (1 + client.markup_pct/100)) }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="6" class="text-muted text-center py-3">No pending charges</td></tr>
+          {% for cs in charge_summary %}
+            {% if cs.period != ns.current_period %}
+              {% set ns.current_period = cs.period %}
+              <tr class="table-light">
+                <td colspan="4" class="fw-semibold small text-uppercase" style="letter-spacing:.4px">{{ cs.period }}</td>
+                <td class="text-end fw-semibold small">£{{ "%.2f"|format(period_totals[cs.period].cost) }}</td>
+                <td class="text-end fw-semibold small">£{{ "%.2f"|format(period_totals[cs.period].sell) }}</td>
+              </tr>
+            {% endif %}
+            <tr>
+              <td></td>
+              <td style="font-size:.82rem">{{ cs.product[:55] }}</td>
+              <td class="text-center"><span class="badge bg-light text-dark">{{ cs.charge_type }}</span></td>
+              <td class="text-center text-muted small">{{ cs.qty }}</td>
+              <td class="text-end text-muted small">£{{ "%.4f"|format(cs.cost) }}</td>
+              <td class="text-end fw-medium">£{{ "%.2f"|format(cs.sell) }}</td>
+            </tr>
           {% endfor %}
           </tbody>
         </table>
       </div>
+      {% else %}
+      <div class="p-3 text-muted text-center">No pending charges</div>
+      {% endif %}
     </div>
+
+    <!-- Invoices -->
     <div class="card">
       <div class="card-header bg-white fw-semibold">Invoices</div>
       <div class="table-responsive">

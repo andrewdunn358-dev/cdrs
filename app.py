@@ -121,10 +121,48 @@ def client_new():
 @app.route('/clients/<int:id>')
 @login_required
 def client_detail(id):
+    from collections import defaultdict
     c = db.get_or_404(Client, id)
     invoices = Invoice.query.filter_by(client_id=id).order_by(Invoice.created_at.desc()).limit(20).all()
-    charges = RawCharge.query.filter_by(client_id=id, invoiced=False).order_by(RawCharge.id.desc()).limit(50).all()
-    return render_template('clients/detail.html', client=c, invoices=invoices, charges=charges)
+
+    # Get all uninvoiced charges
+    all_charges = RawCharge.query.filter_by(client_id=id, invoiced=False).all()
+
+    # Group by period + category + product for summary
+    summary = defaultdict(lambda: {'cost': 0.0, 'qty': 0, 'charge_type': ''})
+    for ch in all_charges:
+        batch = db.session.get(ImportBatch, ch.batch_id)
+        file_type = batch.file_type if batch else ''
+        # Summarise calls by destination type, rentals by product name
+        if ch.charge_type == 'Call':
+            key = (ch.billing_period, 'Call', ch.product_name or 'Call')
+        else:
+            key = (ch.billing_period, ch.charge_type, ch.product_name or 'Service')
+        summary[key]['cost'] += ch.cost_amount * ch.quantity - ch.credit_amount
+        summary[key]['qty'] += 1
+        summary[key]['charge_type'] = ch.charge_type
+
+    # Convert to list sorted by period desc, then charge type, then product
+    charge_summary = []
+    for (period, ctype, product), vals in sorted(summary.items(), key=lambda x: (x[0][0], x[0][1], x[0][2])):
+        sell = vals['cost'] * (1 + c.markup_pct / 100)
+        charge_summary.append({
+            'period': period,
+            'charge_type': ctype,
+            'product': product,
+            'qty': vals['qty'],
+            'cost': vals['cost'],
+            'sell': sell,
+        })
+
+    # Period totals
+    period_totals = defaultdict(lambda: {'cost': 0.0, 'sell': 0.0})
+    for cs in charge_summary:
+        period_totals[cs['period']]['cost'] += cs['cost']
+        period_totals[cs['period']]['sell'] += cs['sell']
+
+    return render_template('clients/detail.html', client=c, invoices=invoices,
+                           charge_summary=charge_summary, period_totals=dict(period_totals))
 
 @app.route('/clients/<int:id>/edit', methods=['GET', 'POST'])
 @login_required

@@ -212,37 +212,41 @@ def generate_pdf(invoice, settings):
     pdf.set_auto_page_break(auto=True, margin=15)
 
     # ── Header ────────────────────────────────────────────────────────────────
-    # Company info left, logo/title right
-    pdf.set_fill_color(30, 58, 95)
-    pdf.rect(0, 0, 210, 36, 'F')
+    pdf.set_fill_color(255, 255, 255)
+    pdf.rect(0, 0, 210, 40, 'F')
 
-    pdf.set_font('Helvetica', 'B', 18)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_xy(15, 8)
-    pdf.cell(0, 8, settings.company_name or 'Synthesis IT', ln=True)
+    # Logo top-left
+    import os
+    logo_path = os.path.join(os.path.dirname(__file__), 'static', 'synthesis-logo.jpg')
+    if os.path.exists(logo_path):
+        pdf.image(logo_path, x=15, y=8, h=18)
 
-    pdf.set_font('Helvetica', '', 9)
-    pdf.set_xy(15, 17)
-    addr_parts = [settings.address_line1, settings.city, settings.postcode]
-    pdf.cell(0, 5, '  |  '.join(p for p in addr_parts if p), ln=True)
-    pdf.set_xy(15, 23)
-    contact_parts = [settings.phone, settings.email]
-    pdf.cell(0, 5, '  |  '.join(p for p in contact_parts if p), ln=True)
+    # Company address top-right
+    pdf.set_font('Helvetica', 'B', 9)
+    pdf.set_text_color(30, 58, 95)
+    pdf.set_xy(110, 8)
+    pdf.cell(85, 5, settings.company_name or 'Synthesis IT Limited', align='R', ln=True)
+    pdf.set_font('Helvetica', '', 8)
+    pdf.set_text_color(80, 80, 80)
+    addr_parts = [p for p in [settings.address_line1, settings.address_line2, settings.city, settings.postcode] if p]
+    for part in addr_parts:
+        pdf.set_x(110)
+        pdf.cell(85, 4, part, align='R', ln=True)
+    if settings.phone:
+        pdf.set_x(110)
+        pdf.cell(85, 4, f"Tel: {settings.phone}", align='R', ln=True)
+    if settings.website:
+        pdf.set_x(110)
+        pdf.cell(85, 4, settings.website, align='R', ln=True)
 
-    # Invoice label top-right
-    pdf.set_font('Helvetica', 'B', 22)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_xy(120, 8)
-    pdf.cell(75, 10, 'INVOICE', align='R', ln=True)
-    pdf.set_font('Helvetica', '', 9)
-    pdf.set_xy(120, 20)
-    pdf.cell(75, 5, f"No: {invoice.invoice_number}", align='R', ln=True)
-    pdf.set_xy(120, 26)
-    pdf.cell(75, 5, f"Date: {invoice.invoice_date.strftime('%d %b %Y')}", align='R', ln=True)
+    # Divider line
+    pdf.set_draw_color(30, 58, 95)
+    pdf.set_line_width(0.5)
+    pdf.line(15, 38, 195, 38)
 
     # ── Bill To / Invoice Details ─────────────────────────────────────────────
     pdf.set_text_color(30, 58, 95)
-    pdf.set_xy(15, 42)
+    pdf.set_xy(15, 44)
     pdf.set_font('Helvetica', 'B', 9)
     pdf.set_fill_color(240, 244, 248)
     pdf.cell(85, 6, 'BILL TO', fill=True)

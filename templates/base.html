@@ -68,6 +68,9 @@ body{font-size:.875rem;background:#f0f2f5}
     <a href="{{ url_for('billing_summary') }}" class="nav-link {% if request.endpoint=='billing_summary' %}active{% endif %}">
       <i class="bi bi-table"></i> Billing Summary
     </a>
+    <a href="{{ url_for('pricelists') }}" class="nav-link {% if 'pricelist' in request.endpoint %}active{% endif %}">
+      <i class="bi bi-tag"></i> Price Lists
+    </a>
     <div class="sidebar-section">System</div>
     <a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint=='settings' %}active{% endif %}">
       <i class="bi bi-gear"></i> Settings

@@ -1110,6 +1110,149 @@ def summary_export_excel():
                      as_attachment=True, download_name=f'Billing_Summary_{period}.xlsx')
 
 
+
+# ── Price Lists ───────────────────────────────────────────────────────────────
+
+@app.route('/pricelists')
+@login_required
+def pricelists():
+    from models import PriceList
+    lists = PriceList.query.order_by(PriceList.uploaded_at.desc()).all()
+    return render_template('pricelists/index.html', lists=lists)
+
+@app.route('/pricelists/upload', methods=['POST'])
+@login_required
+def pricelist_upload():
+    from models import PriceList, PriceListEntry
+    from importer import parse_price_list
+
+    f = request.files.get('file')
+    list_type = request.form.get('list_type')
+    effective_date = request.form.get('effective_date', '')
+
+    if not f or not list_type:
+        flash('Please select a file and list type.', 'warning')
+        return redirect(url_for('pricelists'))
+
+    content_bytes = f.read()
+    entries = parse_price_list(f.filename, content_bytes, list_type)
+
+    if not entries:
+        flash('No entries found in file — check it is the correct format.', 'warning')
+        return redirect(url_for('pricelists'))
+
+    pl = PriceList(
+        name=f"{list_type.title()} — {effective_date or 'Unknown date'}",
+        list_type=list_type,
+        effective_date=effective_date,
+        uploaded_by=current_user.id,
+    )
+    db.session.add(pl)
+    db.session.flush()
+
+    for e in entries:
+        db.session.add(PriceListEntry(
+            price_list_id=pl.id,
+            service=e['service'],
+            billing_name=e['billing_name'],
+            charge_type=e['charge_type'],
+            unit_price=e['unit_price'],
+            install_price=e['install_price'],
+            cease_price_in=e['cease_price_in'],
+            cease_price_out=e['cease_price_out'],
+            notes=e['notes'],
+        ))
+
+    db.session.commit()
+    flash(f'Imported {len(entries)} price list entries.', 'success')
+    return redirect(url_for('pricelist_detail', id=pl.id))
+
+@app.route('/pricelists/<int:id>')
+@login_required
+def pricelist_detail(id):
+    from models import PriceList
+    pl = db.get_or_404(PriceList, id)
+    q = request.args.get('q', '')
+    entries = pl.entries
+    if q:
+        entries = [e for e in entries if q.lower() in (e.service or '').lower()
+                   or q.lower() in (e.billing_name or '').lower()]
+    return render_template('pricelists/detail.html', pl=pl, entries=entries, q=q)
+
+@app.route('/pricelists/<int:id>/delete', methods=['POST'])
+@login_required
+def pricelist_delete(id):
+    from models import PriceList
+    pl = db.get_or_404(PriceList, id)
+    db.session.delete(pl)
+    db.session.commit()
+    flash('Price list deleted.', 'success')
+    return redirect(url_for('pricelists'))
+
+@app.route('/pricelists/reconcile')
+@login_required
+def pricelist_reconcile():
+    """Compare current active charges against price list — flag mismatches."""
+    from models import PriceList, PriceListEntry
+    from sqlalchemy import func
+
+    # Get most recent price list per type
+    latest_lists = {}
+    for pl in PriceList.query.order_by(PriceList.uploaded_at.desc()).all():
+        if pl.list_type not in latest_lists:
+            latest_lists[pl.list_type] = pl
+
+    # Get all active uninvoiced rental charges
+    charges = (RawCharge.query
+               .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
+               .filter(RawCharge.archived == False,
+                       RawCharge.invoiced == False,
+                       RawCharge.charge_type == 'Rental')
+               .all())
+
+    # Build price lookup from all latest lists
+    price_lookup = {}
+    for pl in latest_lists.values():
+        for e in pl.entries:
+            if e.billing_name:
+                price_lookup[e.billing_name.upper().strip()] = e.unit_price
+            if e.service:
+                price_lookup[e.service.upper().strip()] = e.unit_price
+
+    mismatches = []
+    matched_ok = []
+    no_reference = []
+
+    for c in charges:
+        product = (c.product_name or '').strip()
+        # Try exact match then partial match
+        ref_price = price_lookup.get(product.upper())
+        if ref_price is None:
+            # Try partial match
+            for key, price in price_lookup.items():
+                if key in product.upper() or product.upper() in key:
+                    ref_price = price
+                    break
+
+        client = db.session.get(Client, c.client_id) if c.client_id else None
+
+        if ref_price is None:
+            no_reference.append({'charge': c, 'client': client})
+        elif abs(c.cost_amount - ref_price) > 0.01:
+            mismatches.append({
+                'charge': c, 'client': client,
+                'ref_price': ref_price,
+                'diff': c.cost_amount - ref_price,
+                'pct': ((c.cost_amount - ref_price) / ref_price * 100) if ref_price else 0,
+            })
+        else:
+            matched_ok.append({'charge': c, 'client': client, 'ref_price': ref_price})
+
+    return render_template('pricelists/reconcile.html',
+        mismatches=mismatches, matched_ok=matched_ok,
+        no_reference=no_reference, latest_lists=latest_lists)
+
+
 # ── API helpers ───────────────────────────────────────────────────────────────
 
 @app.route('/api/unmatched-keys')

@@ -305,3 +305,102 @@ def match_charges_to_clients(charges, session):
             charge.matched = True
             matched += 1
     return matched
+
+def parse_price_list(filename, content_bytes, list_type):
+    """Parse a Gamma price list Excel file. Returns list of entry dicts."""
+    import openpyxl, io
+    entries = []
+    wb = openpyxl.load_workbook(io.BytesIO(content_bytes), read_only=True, data_only=True)
+    ws = wb.worksheets[0]
+    rows = list(ws.iter_rows(values_only=True))
+
+    # Find header row
+    header_row_idx = None
+    for i, row in enumerate(rows):
+        if row[1] and str(row[1]).lower() == 'service':
+            header_row_idx = i
+            break
+    if header_row_idx is None:
+        return entries
+
+    if list_type == 'broadband':
+        for row in rows[header_row_idx + 1:]:
+            if not row[1]:
+                continue
+            try:
+                service = str(row[1]).strip()
+                charge_type = 'Rental'
+                unit_price = float(row[6]) if row[6] is not None else 0.0
+                install_price = float(row[5]) if row[5] is not None else 0.0
+                cease_in = float(row[9]) if row[9] is not None else 0.0
+                cease_out = float(row[10]) if row[10] is not None else 0.0
+                # billing_name: strip term info to match FF file product names
+                billing_name = service.split(' (')[0].strip()
+                entries.append({
+                    'service': service,
+                    'billing_name': billing_name,
+                    'charge_type': charge_type,
+                    'unit_price': unit_price,
+                    'install_price': install_price,
+                    'cease_price_in': cease_in,
+                    'cease_price_out': cease_out,
+                    'notes': str(row[12]) if row[12] else '',
+                })
+            except:
+                continue
+
+    elif list_type == 'sip':
+        for row in rows[header_row_idx + 1:]:
+            if not row[1] or row[4] is None:
+                continue
+            try:
+                entries.append({
+                    'service': str(row[1]).strip(),
+                    'billing_name': str(row[2]).strip() if row[2] else '',
+                    'charge_type': str(row[3]).strip() if row[3] else 'Rental',
+                    'unit_price': float(row[4]),
+                    'install_price': 0.0,
+                    'cease_price_in': 0.0,
+                    'cease_price_out': 0.0,
+                    'notes': str(row[5]) if row[5] else '',
+                })
+            except:
+                continue
+
+    elif list_type == 'ethernet':
+        for row in rows[header_row_idx + 1:]:
+            if not row[1] or row[4] is None:
+                continue
+            try:
+                entries.append({
+                    'service': str(row[1]).strip(),
+                    'billing_name': str(row[2]).strip() if row[2] else '',
+                    'charge_type': str(row[3]).strip() if row[3] else 'Rental',
+                    'unit_price': float(row[4]),
+                    'install_price': 0.0,
+                    'cease_price_in': 0.0,
+                    'cease_price_out': 0.0,
+                    'notes': str(row[5]) if row[5] else '',
+                })
+            except:
+                continue
+
+    elif list_type == 'porting':
+        for row in rows[header_row_idx + 1:]:
+            if not row[1] or row[5] is None:
+                continue
+            try:
+                entries.append({
+                    'service': str(row[1]).strip(),
+                    'billing_name': str(row[2]).strip() if row[2] else '',
+                    'charge_type': str(row[4]).strip() if row[4] else '',
+                    'unit_price': float(row[5]),
+                    'install_price': 0.0,
+                    'cease_price_in': 0.0,
+                    'cease_price_out': 0.0,
+                    'notes': str(row[6]) if row[6] else '',
+                })
+            except:
+                continue
+
+    return entries

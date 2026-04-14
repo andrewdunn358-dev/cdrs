@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Price Lists{% endblock %}
+{% block page_title %}Price Lists{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("pricelist_reconcile") }}" class="btn btn-sm btn-outline-warning">
+    <i class="bi bi-exclamation-triangle me-1"></i>Reconcile Charges
+  </a>
+{% endblock %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Upload New Price List</div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for("pricelist_upload") }}" enctype="multipart/form-data" class="row g-3">
+          <div class="col-12">
+            <label class="form-label small fw-semibold">List Type</label>
+            <select name="list_type" class="form-select form-select-sm" required>
+              <option value="">Select type...</option>
+              <option value="broadband">Broadband</option>
+              <option value="sip">SIP Trunking</option>
+              <option value="ethernet">Ethernet / Leased Lines</option>
+              <option value="porting">Porting & Numbering</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Effective Date</label>
+            <input type="date" name="effective_date" class="form-control form-control-sm">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">File (.xlsx)</label>
+            <input type="file" name="file" class="form-control form-control-sm" accept=".xlsx" required>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary btn-sm w-100"><i class="bi bi-upload me-1"></i>Upload</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header bg-white fw-semibold">Uploaded Price Lists</div>
+      {% if lists %}
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr><th>Name</th><th>Type</th><th>Effective Date</th><th>Entries</th><th>Uploaded</th><th></th></tr></thead>
+          <tbody>
+          {% for pl in lists %}
+          <tr onclick="location.href='{{ url_for("pricelist_detail", id=pl.id) }}'" style="cursor:pointer">
+            <td class="fw-medium">{{ pl.name }}</td>
+            <td><span class="badge bg-light text-dark">{{ pl.list_type }}</span></td>
+            <td>{{ pl.effective_date or "—" }}</td>
+            <td>{{ pl.entries|length }}</td>
+            <td class="text-muted small">{{ pl.uploaded_at.strftime("%d %b %Y") }}</td>
+            <td>
+              <form method="POST" action="{{ url_for("pricelist_delete", id=pl.id) }}" onsubmit="return confirm("Delete this price list?")" onclick="event.stopPropagation()">
+                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-muted text-center">No price lists uploaded yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

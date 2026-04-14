@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Price Reconciliation{% endblock %}
+{% block page_title %}Price Reconciliation{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("pricelists") }}" class="btn btn-sm btn-outline-secondary">Price Lists</a>
+{% endblock %}
+{% block content %}
+
+{% if not latest_lists %}
+<div class="alert alert-warning">No price lists uploaded yet. <a href="{{ url_for("pricelists") }}">Upload price lists</a> first.</div>
+{% else %}
+
+{% if mismatches %}
+<div class="card mb-3 border-danger">
+  <div class="card-header bg-danger text-white fw-semibold d-flex justify-content-between">
+    <span><i class="bi bi-exclamation-triangle-fill me-2"></i>Price Mismatches ({{ mismatches|length }})</span>
+    <small>Gamma is charging a different amount than the price list</small>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0" style="font-size:.82rem">
+      <thead><tr><th>Client</th><th>Product</th><th class="text-end">Gamma Charges</th><th class="text-end">Price List</th><th class="text-end">Difference</th><th class="text-end">%</th></tr></thead>
+      <tbody>
+      {% for m in mismatches %}
+      <tr class="{% if m.diff > 0 %}table-danger{% else %}table-warning{% endif %}">
+        <td>{{ m.client.name if m.client else "Unassigned" }}</td>
+        <td>{{ m.charge.product_name }}</td>
+        <td class="text-end">£{{ "%.4f"|format(m.charge.cost_amount) }}</td>
+        <td class="text-end">£{{ "%.4f"|format(m.ref_price) }}</td>
+        <td class="text-end fw-semibold">{{ "+" if m.diff > 0 else "" }}£{{ "%.4f"|format(m.diff) }}</td>
+        <td class="text-end">{{ "%.1f"|format(m.pct) }}%</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-success"><i class="bi bi-check-circle me-2"></i>No price mismatches found — all charges match the price list.</div>
+{% endif %}
+
+{% if no_reference %}
+<div class="card mb-3">
+  <div class="card-header bg-white fw-semibold text-muted">
+    No Price List Reference ({{ no_reference|length }}) — cannot verify these
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0" style="font-size:.82rem">
+      <thead><tr><th>Client</th><th>Product</th><th class="text-end">Gamma Charges</th></tr></thead>
+      <tbody>
+      {% for r in no_reference %}
+      <tr>
+        <td>{{ r.client.name if r.client else "Unassigned" }}</td>
+        <td>{{ r.charge.product_name }}</td>
+        <td class="text-end">£{{ "%.4f"|format(r.charge.cost_amount) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header bg-white fw-semibold text-success">
+    <i class="bi bi-check-circle me-2"></i>Matched OK ({{ matched_ok|length }})
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0" style="font-size:.82rem">
+      <thead><tr><th>Client</th><th>Product</th><th class="text-end">Gamma Charges</th><th class="text-end">Price List</th></tr></thead>
+      <tbody>
+      {% for m in matched_ok %}
+      <tr>
+        <td>{{ m.client.name if m.client else "Unassigned" }}</td>
+        <td>{{ m.charge.product_name }}</td>
+        <td class="text-end">£{{ "%.4f"|format(m.charge.cost_amount) }}</td>
+        <td class="text-end text-success">£{{ "%.4f"|format(m.ref_price) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -177,3 +177,28 @@ class IgnoredKey(db.Model):
     reason = db.Column(db.String(200))
     ignored_at = db.Column(db.DateTime, default=datetime.utcnow)
     ignored_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+class PriceList(db.Model):
+    """Uploaded Gamma price list — one record per upload."""
+    __tablename__ = 'price_lists'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)   # e.g. "Broadband April 2026"
+    list_type = db.Column(db.String(50), nullable=False)  # broadband | sip | ethernet | porting
+    effective_date = db.Column(db.String(20))            # e.g. "2026-04-01"
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    entries = db.relationship('PriceListEntry', backref='price_list', lazy=True, cascade='all, delete-orphan')
+
+class PriceListEntry(db.Model):
+    """Individual product price within a price list."""
+    __tablename__ = 'price_list_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    price_list_id = db.Column(db.Integer, db.ForeignKey('price_lists.id'), nullable=False)
+    service = db.Column(db.String(200))       # e.g. "FTTC 160:30"
+    billing_name = db.Column(db.String(200))  # exact name as it appears in Gamma FF files
+    charge_type = db.Column(db.String(50))    # Rental | Connection | Cease
+    unit_price = db.Column(db.Float, default=0.0)
+    cease_price_in = db.Column(db.Float, default=0.0)   # in-term cease
+    cease_price_out = db.Column(db.Float, default=0.0)  # out-of-term cease
+    install_price = db.Column(db.Float, default=0.0)
+    notes = db.Column(db.String(300))

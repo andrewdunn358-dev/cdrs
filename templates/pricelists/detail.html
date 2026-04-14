@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ pl.name }}{% endblock %}
+{% block page_title %}{{ pl.name }}{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("pricelists") }}" class="btn btn-sm btn-outline-secondary">Back</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white d-flex align-items-center justify-content-between">
+    <span class="fw-semibold">{{ pl.entries|length }} entries</span>
+    <form class="d-flex gap-2" method="GET">
+      <input name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Search product..." style="width:220px" onchange="this.form.submit()">
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0" style="font-size:.82rem">
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Billing Name</th>
+          <th>Type</th>
+          <th class="text-end">Unit Price</th>
+          <th class="text-end">Install</th>
+          <th class="text-end">Cease (in-term)</th>
+          <th class="text-end">Cease (out)</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for e in entries %}
+      <tr>
+        <td>{{ e.service }}</td>
+        <td class="text-muted">{{ e.billing_name }}</td>
+        <td><span class="badge bg-light text-dark">{{ e.charge_type }}</span></td>
+        <td class="text-end fw-medium">£{{ "%.4f"|format(e.unit_price) }}</td>
+        <td class="text-end text-muted">{% if e.install_price %}£{{ "%.2f"|format(e.install_price) }}{% else %}—{% endif %}</td>
+        <td class="text-end text-muted">{% if e.cease_price_in %}£{{ "%.2f"|format(e.cease_price_in) }}{% else %}—{% endif %}</td>
+        <td class="text-end text-muted">{% if e.cease_price_out %}£{{ "%.2f"|format(e.cease_price_out) }}{% else %}—{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">No entries found</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

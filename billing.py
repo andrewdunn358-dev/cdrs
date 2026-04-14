@@ -363,14 +363,16 @@ def generate_pdf(invoice, settings):
     # ── Itemised Calls Appendix ───────────────────────────────────────────────
     call_charges = []
     try:
-        from models import RawCharge as _RC
+        from models import RawCharge as _RC, ImportBatch as _IB
         from flask import current_app
         from models import db as _db
         for line in invoice.lines:
             if line.category == 'Calls':
                 calls = (_db.session.query(_RC)
+                         .join(_IB, _RC.batch_id == _IB.id)
                          .filter(_RC.invoice_line_id == line.id,
-                                 _RC.charge_type == 'Call')
+                                 _RC.charge_type == 'Call',
+                                 _IB.billing_period == invoice.billing_period)
                          .order_by(_RC.call_date, _RC.description)
                          .all())
                 call_charges.extend(calls)

@@ -119,7 +119,10 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
         # Auto-add £24 IP addressing for leased line clients (if not already a recurring charge)
         has_ces = ClientIdentifier.query.filter_by(
             client_id=client_id, id_type='gamma_ces_circuit', active=True).first()
-        has_ip_charge = any('IP' in l['description'].upper() for l in lines)
+        has_ip_charge = any(
+            l['description'] == 'IP Addressing' and l['unit_price'] > 0
+            for l in lines
+        )
         if has_ces and not has_ip_charge:
             lines.append({
                 'category': 'Leased Lines',

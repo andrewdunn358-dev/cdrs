@@ -205,6 +205,30 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
 
 # ── PDF Generation ────────────────────────────────────────────────────────────
 
+
+def _ofcom_suppress(destination):
+    """
+    Ofcom rule C4.10 — suppress free-to-caller numbers from itemised bills.
+    Returns True if the call should be suppressed.
+    """
+    if not destination:
+        return False
+    d = str(destination).strip().replace(' ', '')
+    # Emergency services
+    if d in ('999', '112', '911'):
+        return True
+    # Police non-emergency
+    if d == '101':
+        return True
+    # Free helplines 116xxx
+    if d.startswith('116'):
+        return True
+    # Freephone 0800, 0808, 0500
+    if d.startswith('0800') or d.startswith('0808') or d.startswith('0500'):
+        return True
+    # Also suppress if product name indicates free/emergency
+    return False
+
 def _pdf_safe(text):
     """Strip characters not supported by fpdf2 built-in fonts."""
     if not text:
@@ -406,6 +430,9 @@ def generate_pdf(invoice, settings):
         pdf.set_text_color(40, 40, 40)
         fill = False
         for c in call_charges:
+            # Ofcom C4.10 - suppress free-to-caller numbers
+            if _ofcom_suppress(c.destination):
+                continue
             if pdf.get_y() > 270:
                 pdf.add_page()
                 pdf.set_fill_color(30, 58, 95)

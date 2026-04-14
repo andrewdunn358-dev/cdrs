@@ -719,6 +719,9 @@ def invoice_detail(id):
                  .filter_by(invoice_line_id=line.id, charge_type='Call')
                  .order_by(RawCharge.call_date, RawCharge.description)
                  .all())
+        # Ofcom C4.10 - suppress free-to-caller numbers from itemised bill
+        from billing import _ofcom_suppress
+        calls = [c for c in calls if not _ofcom_suppress(c.destination)]
         itemised_calls.extend(calls)
     return render_template('invoices/detail.html', invoice=inv,
                            settings=get_settings(), itemised_calls=itemised_calls)

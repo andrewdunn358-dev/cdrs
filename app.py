@@ -716,10 +716,7 @@ def invoice_detail(id):
     itemised_calls = []
     for line in call_lines:
         calls = (RawCharge.query
-                 .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
-                 .filter(RawCharge.invoice_line_id == line.id,
-                         RawCharge.charge_type == 'Call',
-                         ImportBatch.billing_period == inv.billing_period)
+                 .filter_by(invoice_line_id=line.id, charge_type='Call')
                  .order_by(RawCharge.call_date, RawCharge.description)
                  .all())
         itemised_calls.extend(calls)

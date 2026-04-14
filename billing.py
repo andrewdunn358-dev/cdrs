@@ -369,10 +369,8 @@ def generate_pdf(invoice, settings):
         for line in invoice.lines:
             if line.category == 'Calls':
                 calls = (_db.session.query(_RC)
-                         .join(_IB, _RC.batch_id == _IB.id)
                          .filter(_RC.invoice_line_id == line.id,
-                                 _RC.charge_type == 'Call',
-                                 _IB.billing_period == invoice.billing_period)
+                                 _RC.charge_type == 'Call')
                          .order_by(_RC.call_date, _RC.description)
                          .all())
                 call_charges.extend(calls)

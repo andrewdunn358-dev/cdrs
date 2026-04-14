@@ -71,7 +71,7 @@
           <a href="{{ url_for("invoice_detail", id=inv.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
           <a href="{{ url_for("invoice_pdf", id=inv.id) }}" class="btn btn-sm btn-outline-danger" target="_blank"><i class="bi bi-filetype-pdf"></i></a>
           {% if inv.status != "paid" %}
-          <form method="POST" action="{{ url_for("invoice_delete", id=inv.id) }}" onsubmit="return confirm("Delete invoice {{ inv.invoice_number }}?")">
+          <form method="POST" action="{{ url_for("invoice_delete", id=inv.id) }}" id="delInv{{ inv.id }}" onsubmit="return confirmDelete('delInv{{ inv.id }}', 'Delete invoice {{ inv.invoice_number }} for {{ inv.client.name }}?')">
             <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
           </form>
           {% endif %}

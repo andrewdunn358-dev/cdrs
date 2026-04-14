@@ -55,7 +55,7 @@
   </form>
   {% endif %}
   {% if invoice.status != "paid" %}
-  <form method="POST" action="{{ url_for("invoice_delete", id=invoice.id) }}" onsubmit="return confirm("Delete this invoice?")">
+  <form method="POST" action="{{ url_for("invoice_delete", id=invoice.id) }}" id="deleteInvoiceForm{{ invoice.id }}" onsubmit="return confirmDelete('deleteInvoiceForm{{ invoice.id }}', 'Delete invoice {{ invoice.invoice_number }} for {{ invoice.client.name }}? This cannot be undone.')">
     <button class="btn btn-sm btn-outline-danger">Delete</button>
   </form>
   {% endif %}

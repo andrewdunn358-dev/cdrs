@@ -20,7 +20,7 @@
             {% else %}<span class="text-warning">{{ b.matched_count }}/{{ b.record_count }}</span>{% endif %}</td>
         <td class="text-muted small">{{ b.imported_at.strftime("%d %b %Y %H:%M") }}</td>
         <td>
-          <form method="POST" action="{{ url_for("import_delete", id=b.id) }}" onsubmit="return confirm("Delete this import batch?")">
+          <form method="POST" action="{{ url_for("import_delete", id=b.id) }}" id="delBatch{{ b.id }}" onsubmit="return confirmDelete('delBatch{{ b.id }}', 'Delete import batch {{ b.filename }}? This will remove all associated charges.')">
             <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
           </form>
         </td>

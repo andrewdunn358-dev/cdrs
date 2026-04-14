@@ -711,7 +711,17 @@ def invoices_bulk_delete():
 @login_required
 def invoice_detail(id):
     inv = db.get_or_404(Invoice, id)
-    return render_template('invoices/detail.html', invoice=inv, settings=get_settings())
+    # Get itemised calls for this invoice
+    call_lines = [l for l in inv.lines if l.category == 'Calls']
+    itemised_calls = []
+    for line in call_lines:
+        calls = (RawCharge.query
+                 .filter_by(invoice_line_id=line.id, charge_type='Call')
+                 .order_by(RawCharge.call_date, RawCharge.description)
+                 .all())
+        itemised_calls.extend(calls)
+    return render_template('invoices/detail.html', invoice=inv,
+                           settings=get_settings(), itemised_calls=itemised_calls)
 
 @app.route('/invoices/mark-all-sent', methods=['POST'])
 @login_required

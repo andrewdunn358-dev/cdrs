@@ -1,5 +1,44 @@
 {% extends "base.html" %}
-{% block title %}{{ invoice.invoice_number }}{% endblock %}
+{% block title %}{{ invoice.invoice_number }}
+{% if itemised_calls %}
+<div class="card mt-3">
+  <div class="card-header bg-white fw-semibold d-flex justify-content-between">
+    <span>Itemised Calls</span>
+    <span class="text-muted small">{{ itemised_calls|length }} calls</span>
+  </div>
+  <div class="table-responsive" style="max-height:400px;overflow-y:auto">
+    <table class="table table-sm table-hover mb-0" style="font-size:.8rem">
+      <thead style="position:sticky;top:0;z-index:1">
+        <tr>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Called Number</th>
+          <th>Description</th>
+          <th class="text-end">Duration</th>
+          <th class="text-end">Cost</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in itemised_calls %}
+      <tr>
+        <td>{{ c.call_date.strftime("%d/%m/%Y") if c.call_date else "—" }}</td>
+        <td class="font-monospace text-muted">{{ c.description or "—" }}</td>
+        <td class="font-monospace">{{ c.destination or "—" }}</td>
+        <td class="text-muted">{{ (c.product_name or "").replace("Call — ","")[:30] }}</td>
+        <td class="text-end">
+          {% if c.call_duration %}
+            {{ (c.call_duration // 60) }}m {{ "%02d"|format(c.call_duration % 60) }}s
+          {% else %}—{% endif %}
+        </td>
+        <td class="text-end">£{{ "%.4f"|format(c.cost_amount) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
 {% block breadcrumb_invoice %}{{ invoice.invoice_number }}{% endblock %}
 {% block page_title %}Invoice {{ invoice.invoice_number }}{% endblock %}
 {% block topbar_actions %}

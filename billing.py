@@ -256,11 +256,15 @@ def generate_pdf(invoice, settings):
     pdf.set_font('Helvetica', 'B', 10)
     pdf.set_text_color(20, 20, 20)
     pdf.set_xy(15, 50)
-    pdf.cell(0, 5, client.name, ln=True)
+    pdf.cell(0, 6, client.name, ln=True)
     pdf.set_font('Helvetica', '', 9)
-    pdf.set_xy(15, 55)
+    pdf.set_text_color(80, 80, 80)
+    if client.account_ref:
+        pdf.set_x(15)
+        pdf.cell(0, 4, f"Account: {client.account_ref}", ln=True)
     for part in [client.address_line1, client.address_line2, client.city, client.postcode]:
         if part:
+            pdf.set_x(15)
             pdf.cell(0, 4, part, ln=True)
 
     # Right side details
@@ -348,5 +352,69 @@ def generate_pdf(invoice, settings):
     pdf.set_font('Helvetica', 'I', 7)
     pdf.set_text_color(150, 150, 150)
     pdf.cell(0, 5, f"{settings.company_name}  |  {settings.company_number or ''}  |  VAT {settings.vat_number or ''}  |  All prices in GBP", align='C')
+
+    # ── Itemised Calls Appendix ───────────────────────────────────────────────
+    call_charges = []
+    for line in invoice.lines:
+        if line.category == 'Calls':
+            from models import RawCharge as _RC
+            calls = (_RC.query
+                     .filter_by(invoice_line_id=line.id, charge_type='Call')
+                     .order_by(_RC.call_date, _RC.description)
+                     .all())
+            call_charges.extend(calls)
+
+    if call_charges:
+        pdf.add_page()
+
+        # Header
+        pdf.set_fill_color(30, 58, 95)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font('Helvetica', 'B', 11)
+        pdf.set_xy(15, 15)
+        pdf.cell(180, 8, f"Itemised Calls — {invoice.invoice_number} — {client.name}", fill=True, ln=True)
+
+        # Column headers
+        pdf.set_fill_color(240, 244, 248)
+        pdf.set_text_color(30, 58, 95)
+        pdf.set_font('Helvetica', 'B', 8)
+        pdf.set_x(15)
+        pdf.cell(22, 6, 'Date', fill=True)
+        pdf.cell(18, 6, 'Time', fill=True)
+        pdf.cell(35, 6, 'Called Number', fill=True)
+        pdf.cell(70, 6, 'Description', fill=True)
+        pdf.cell(18, 6, 'Duration', fill=True, align='R')
+        pdf.cell(22, 6, 'Cost', fill=True, align='R', ln=True)
+
+        pdf.set_font('Helvetica', '', 8)
+        pdf.set_text_color(40, 40, 40)
+        fill = False
+        for c in call_charges:
+            if pdf.get_y() > 270:
+                pdf.add_page()
+                pdf.set_fill_color(30, 58, 95)
+                pdf.set_text_color(255, 255, 255)
+                pdf.set_font('Helvetica', 'B', 11)
+                pdf.set_xy(15, 15)
+                pdf.cell(180, 8, f"Itemised Calls (continued) — {invoice.invoice_number}", fill=True, ln=True)
+                pdf.set_font('Helvetica', '', 8)
+                pdf.set_text_color(40, 40, 40)
+
+            pdf.set_fill_color(248, 250, 252) if fill else pdf.set_fill_color(255, 255, 255)
+            date_str = c.call_date.strftime('%d/%m/%Y') if c.call_date else '—'
+            time_str = c.description or '—'
+            dest = c.destination or '—'
+            desc = (c.product_name or '').replace('Call — ', '')[:35]
+            dur = f"{c.call_duration // 60}m {c.call_duration % 60:02d}s" if c.call_duration else '—'
+            cost = f"£{c.cost_amount:.4f}"
+
+            pdf.set_x(15)
+            pdf.cell(22, 5, date_str, fill=True)
+            pdf.cell(18, 5, time_str, fill=True)
+            pdf.cell(35, 5, dest, fill=True)
+            pdf.cell(70, 5, desc, fill=True)
+            pdf.cell(18, 5, dur, fill=True, align='R')
+            pdf.cell(22, 5, cost, fill=True, align='R', ln=True)
+            fill = not fill
 
     return pdf.output()

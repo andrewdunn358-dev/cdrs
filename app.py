@@ -314,19 +314,23 @@ def import_upload():
                 db.session.add(batch)
                 db.session.flush()
 
-                # Auto-archive any older uninvoiced batches of the same file type
-                older_batches = (ImportBatch.query
-                    .filter(ImportBatch.file_type == file_type,
-                            ImportBatch.id != batch.id)
-                    .all())
+                # Auto-archive only SERVICE files when a newer version is imported
+                # NEVER auto-archive call CDRs — calls are billed in arrears
+                SERVICE_FILE_TYPES = ['gamma_bb', 'gamma_ces', 'gamma_ipdc',
+                                      'gamma_wlr', 'gamma_inb']
                 archived_count = 0
-                for old_batch in older_batches:
-                    updated = (RawCharge.query
-                        .filter_by(batch_id=old_batch.id, invoiced=False, archived=False)
-                        .update({'archived': True}))
-                    archived_count += updated
-                if archived_count:
-                    db.session.flush()
+                if file_type in SERVICE_FILE_TYPES:
+                    older_batches = (ImportBatch.query
+                        .filter(ImportBatch.file_type == file_type,
+                                ImportBatch.id != batch.id)
+                        .all())
+                    for old_batch in older_batches:
+                        updated = (RawCharge.query
+                            .filter_by(batch_id=old_batch.id, invoiced=False, archived=False)
+                            .update({'archived': True}))
+                        archived_count += updated
+                    if archived_count:
+                        db.session.flush()
 
                 charge_objs = []
                 for r in records:

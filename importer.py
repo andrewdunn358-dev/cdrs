@@ -306,101 +306,189 @@ def match_charges_to_clients(charges, session):
             matched += 1
     return matched
 
-def parse_price_list(filename, content_bytes, list_type):
-    """Parse a Gamma price list Excel file. Returns list of entry dicts."""
-    import openpyxl, io
-    entries = []
-    wb = openpyxl.load_workbook(io.BytesIO(content_bytes), read_only=True, data_only=True)
-    ws = wb.worksheets[0]
-    rows = list(ws.iter_rows(values_only=True))
 
-    # Find header row
-    header_row_idx = None
-    for i, row in enumerate(rows):
-        if row[1] and str(row[1]).lower() == 'service':
-            header_row_idx = i
-            break
-    if header_row_idx is None:
-        return entries
+def _pl_rows(path_or_bytes, sheet_idx=0):
+    """Load worksheet rows from file path or bytes."""
+    import openpyxl, io
+    if isinstance(path_or_bytes, (bytes, bytearray)):
+        wb = openpyxl.load_workbook(io.BytesIO(path_or_bytes), read_only=True, data_only=True)
+    else:
+        wb = openpyxl.load_workbook(path_or_bytes, read_only=True, data_only=True)
+    return list(wb.worksheets[sheet_idx].iter_rows(values_only=True)), wb.sheetnames
+
+def _find_header(rows, keyword='service'):
+    for i, row in enumerate(rows[:20]):
+        if row[1] and str(row[1]).lower().strip() == keyword:
+            return i
+    return None
+
+def _safe_float(v):
+    if v is None: return 0.0
+    try: return float(str(v).replace('£','').replace(',','').strip())
+    except: return 0.0
+
+def _s(v): return str(v).strip() if v else ''
+
+def parse_price_list(filename, content_bytes, list_type):
+    """Parse any Gamma price list Excel. Returns list of entry dicts."""
+    entries = []
+
+    def entry(service, billing_name, charge_type, price, install=0, cease_in=0, cease_out=0, notes=''):
+        return dict(service=service, billing_name=billing_name, charge_type=charge_type,
+                    unit_price=_safe_float(price), install_price=_safe_float(install),
+                    cease_price_in=_safe_float(cease_in), cease_price_out=_safe_float(cease_out),
+                    notes=_s(notes))
 
     if list_type == 'broadband':
-        for row in rows[header_row_idx + 1:]:
-            if not row[1]:
-                continue
+        rows, _ = _pl_rows(content_bytes)
+        hi = _find_header(rows)
+        if hi is None: return entries
+        for row in rows[hi+1:]:
+            if not row[1] or str(row[1]).isupper(): continue  # skip section headers
             try:
-                service = str(row[1]).strip()
-                charge_type = 'Rental'
-                unit_price = float(row[6]) if row[6] is not None else 0.0
-                install_price = float(row[5]) if row[5] is not None else 0.0
-                cease_in = float(row[9]) if row[9] is not None else 0.0
-                cease_out = float(row[10]) if row[10] is not None else 0.0
-                # billing_name: strip term info to match FF file product names
-                billing_name = service.split(' (')[0].strip()
-                entries.append({
-                    'service': service,
-                    'billing_name': billing_name,
-                    'charge_type': charge_type,
-                    'unit_price': unit_price,
-                    'install_price': install_price,
-                    'cease_price_in': cease_in,
-                    'cease_price_out': cease_out,
-                    'notes': str(row[12]) if row[12] else '',
-                })
-            except:
-                continue
+                svc = _s(row[1])
+                billing = svc.split(' (')[0].strip()
+                entries.append(entry(svc, billing, 'Rental',
+                    row[6], row[5], row[9], row[10], row[12] if len(row)>12 else ''))
+            except: continue
 
-    elif list_type == 'sip':
-        for row in rows[header_row_idx + 1:]:
-            if not row[1] or row[4] is None:
-                continue
+    elif list_type in ('sip', 'inbound', 'webex', 'horizon', 'gamma_plus'):
+        rows, _ = _pl_rows(content_bytes)
+        hi = _find_header(rows)
+        if hi is None: return entries
+        # Detect column layout
+        headers = [_s(v).lower() for v in rows[hi]]
+        price_col = next((i for i,h in enumerate(headers) if 'price' in h), 4)
+        bname_col = 2
+        ctype_col = 3
+        for row in rows[hi+1:]:
+            if not row[1] or not row[price_col]: continue
             try:
-                entries.append({
-                    'service': str(row[1]).strip(),
-                    'billing_name': str(row[2]).strip() if row[2] else '',
-                    'charge_type': str(row[3]).strip() if row[3] else 'Rental',
-                    'unit_price': float(row[4]),
-                    'install_price': 0.0,
-                    'cease_price_in': 0.0,
-                    'cease_price_out': 0.0,
-                    'notes': str(row[5]) if row[5] else '',
-                })
-            except:
-                continue
+                entries.append(entry(_s(row[1]), _s(row[bname_col]), _s(row[ctype_col]),
+                    row[price_col], notes=_s(row[5] if len(row)>5 else '')))
+            except: continue
 
     elif list_type == 'ethernet':
-        for row in rows[header_row_idx + 1:]:
-            if not row[1] or row[4] is None:
-                continue
+        rows, _ = _pl_rows(content_bytes)
+        hi = _find_header(rows)
+        if hi is None: return entries
+        for row in rows[hi+1:]:
+            if not row[1] or row[4] is None: continue
             try:
-                entries.append({
-                    'service': str(row[1]).strip(),
-                    'billing_name': str(row[2]).strip() if row[2] else '',
-                    'charge_type': str(row[3]).strip() if row[3] else 'Rental',
-                    'unit_price': float(row[4]),
-                    'install_price': 0.0,
-                    'cease_price_in': 0.0,
-                    'cease_price_out': 0.0,
-                    'notes': str(row[5]) if row[5] else '',
-                })
-            except:
-                continue
+                entries.append(entry(_s(row[1]), _s(row[2]), _s(row[3]),
+                    row[4], notes=_s(row[5] if len(row)>5 else '')))
+            except: continue
+
+    elif list_type == 'wlr':
+        # WLR has multiple sheets and different column layout
+        import openpyxl, io
+        wb = openpyxl.load_workbook(io.BytesIO(content_bytes), read_only=True, data_only=True)
+        for ws in wb.worksheets:
+            rows = list(ws.iter_rows(values_only=True))
+            hi = None
+            for i, row in enumerate(rows[:15]):
+                if row[1] and 'connection' in _s(row[1]).lower():
+                    hi = i
+                    break
+                if row[1] and _s(row[1]).lower() in ('service', 'new connection - basic single line'):
+                    hi = i
+                    break
+            if hi is None: continue
+            for row in rows[hi:]:
+                if not row[1] or not row[6]: continue
+                try:
+                    price = _safe_float(row[6])
+                    if price > 0:
+                        entries.append(entry(_s(row[1]), _s(row[3]), _s(row[2]),
+                            price, notes=_s(row[5] if len(row)>5 else '')))
+                except: continue
 
     elif list_type == 'porting':
-        for row in rows[header_row_idx + 1:]:
-            if not row[1] or row[5] is None:
-                continue
-            try:
-                entries.append({
-                    'service': str(row[1]).strip(),
-                    'billing_name': str(row[2]).strip() if row[2] else '',
-                    'charge_type': str(row[4]).strip() if row[4] else '',
-                    'unit_price': float(row[5]),
-                    'install_price': 0.0,
-                    'cease_price_in': 0.0,
-                    'cease_price_out': 0.0,
-                    'notes': str(row[6]) if row[6] else '',
-                })
-            except:
-                continue
+        # Porting has service in col1 OR col2, price in col5
+        import openpyxl, io
+        wb = openpyxl.load_workbook(io.BytesIO(content_bytes), read_only=True, data_only=True)
+        for ws in wb.worksheets:
+            rows = list(ws.iter_rows(values_only=True))
+            hi = _find_header(rows)
+            if hi is None: continue
+            current_service = ""
+            for row in rows[hi+1:]:
+                if row[1]: current_service = _s(row[1])
+                svc = current_service
+                bname = _s(row[2]) if row[2] else svc
+                if not bname or row[5] is None: continue
+                try:
+                    entries.append(entry(svc, bname, _s(row[4]), row[5],
+                        notes=_s(row[6] if len(row)>6 else '')))
+                except: continue
 
-    return entries
+    elif list_type == 'mobile':
+        rows, _ = _pl_rows(content_bytes)
+        hi = None
+        for i, row in enumerate(rows[:15]):
+            if row[1] and _s(row[1]).lower() == 'service':
+                hi = i; break
+        if hi is None: return entries
+        for row in rows[hi+1:]:
+            if not row[1] or row[5] is None: continue
+            try:
+                entries.append(entry(_s(row[1]), _s(row[2]), 'Rental',
+                    row[5], notes=_s(row[4] if len(row)>4 else '')))
+            except: continue
+
+    elif list_type == 'phoneline':
+        rows, _ = _pl_rows(content_bytes)
+        hi = None
+        for i, row in enumerate(rows[:15]):
+            if row[1] and _s(row[1]).lower() in ('service', 'services'):
+                hi = i; break
+        if hi is None: return entries
+        for row in rows[hi+1:]:
+            if not row[1] or row[5] is None: continue
+            try:
+                entries.append(entry(_s(row[1]), _s(row[2]), _s(row[4]),
+                    row[5], notes=_s(row[6] if len(row)>6 else '')))
+            except: continue
+
+    elif list_type == 'admin':
+        rows, _ = _pl_rows(content_bytes)
+        hi = _find_header(rows)
+        if hi is None: return entries
+        for row in rows[hi+1:]:
+            if not row[1] or row[3] is None: continue
+            try:
+                price = _safe_float(row[3])
+                if price > 0:
+                    entries.append(entry(_s(row[1]), _s(row[2]), 'Charge', price))
+            except: continue
+
+    elif list_type == 'intl_sip':
+        rows, _ = _pl_rows(content_bytes)
+        # Header has Service in col1, BillingName in col2, Price in col3, ChargeType in col4
+        hi = None
+        for i, row in enumerate(rows[:15]):
+            if row[1] and 'sip' in _s(row[1]).lower():
+                hi = i; break
+        if hi is None: return entries
+        for row in rows[hi+1:]:
+            if not row[1] or row[3] is None: continue
+            try:
+                entries.append(entry(_s(row[1]), _s(row[2]), _s(row[4] if len(row)>4 else 'Rental'), row[3]))
+            except: continue
+
+    elif list_type == 'safeweb':
+        rows, _ = _pl_rows(content_bytes)
+        # Header: Products | Term | Charge Type | Price
+        hi = None
+        for i, row in enumerate(rows[:15]):
+            if row[1] and _s(row[1]).lower() in ('products', 'service', 'services'):
+                hi = i; break
+        if hi is None: return entries
+        for row in rows[hi+1:]:
+            if not row[1] or row[4] is None: continue
+            try:
+                entries.append(entry(_s(row[1]), _s(row[1]), _s(row[3]), row[4],
+                    notes=_s(row[2] if len(row)>2 else '')))
+            except: continue
+
+    return [e for e in entries if e['unit_price'] >= 0]

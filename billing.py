@@ -355,14 +355,20 @@ def generate_pdf(invoice, settings):
 
     # ── Itemised Calls Appendix ───────────────────────────────────────────────
     call_charges = []
-    for line in invoice.lines:
-        if line.category == 'Calls':
-            from models import RawCharge as _RC
-            calls = (_RC.query
-                     .filter_by(invoice_line_id=line.id, charge_type='Call')
-                     .order_by(_RC.call_date, _RC.description)
-                     .all())
-            call_charges.extend(calls)
+    try:
+        from models import RawCharge as _RC
+        from flask import current_app
+        from models import db as _db
+        for line in invoice.lines:
+            if line.category == 'Calls':
+                calls = (_db.session.query(_RC)
+                         .filter(_RC.invoice_line_id == line.id,
+                                 _RC.charge_type == 'Call')
+                         .order_by(_RC.call_date, _RC.description)
+                         .all())
+                call_charges.extend(calls)
+    except Exception:
+        call_charges = []
 
     if call_charges:
         pdf.add_page()

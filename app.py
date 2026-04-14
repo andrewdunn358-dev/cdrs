@@ -1135,6 +1135,7 @@ def pricelist_upload():
         return redirect(url_for('pricelists'))
 
     content_bytes = f.read()
+    from importer import parse_price_list
     entries = parse_price_list(f.filename, content_bytes, list_type)
 
     if not entries:

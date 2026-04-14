@@ -378,7 +378,7 @@ def generate_pdf(invoice, settings):
         pdf.set_text_color(255, 255, 255)
         pdf.set_font('Helvetica', 'B', 11)
         pdf.set_xy(15, 15)
-        pdf.cell(180, 8, f"Itemised Calls — {invoice.invoice_number} — {client.name}", fill=True, ln=True)
+        pdf.cell(180, 8, f"Itemised Calls - {invoice.invoice_number} - {client.name}", fill=True, ln=True)
 
         # Column headers
         pdf.set_fill_color(240, 244, 248)
@@ -402,16 +402,16 @@ def generate_pdf(invoice, settings):
                 pdf.set_text_color(255, 255, 255)
                 pdf.set_font('Helvetica', 'B', 11)
                 pdf.set_xy(15, 15)
-                pdf.cell(180, 8, f"Itemised Calls (continued) — {invoice.invoice_number}", fill=True, ln=True)
+                pdf.cell(180, 8, f"Itemised Calls (continued) - {invoice.invoice_number}", fill=True, ln=True)
                 pdf.set_font('Helvetica', '', 8)
                 pdf.set_text_color(40, 40, 40)
 
             pdf.set_fill_color(248, 250, 252) if fill else pdf.set_fill_color(255, 255, 255)
-            date_str = c.call_date.strftime('%d/%m/%Y') if c.call_date else '—'
-            time_str = c.description or '—'
-            dest = c.destination or '—'
-            desc = (c.product_name or '').replace('Call — ', '')[:35]
-            dur = f"{c.call_duration // 60}m {c.call_duration % 60:02d}s" if c.call_duration else '—'
+            date_str = c.call_date.strftime('%d/%m/%Y') if c.call_date else '-'
+            time_str = c.description or '-'
+            dest = c.destination or '-'
+            desc = (c.product_name or '').replace('Call - ', '')[:35]
+            dur = f"{c.call_duration // 60}m {c.call_duration % 60:02d}s" if c.call_duration else '-'
             cost = f"£{c.cost_amount:.4f}"
 
             pdf.set_x(15)

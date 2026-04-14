@@ -202,6 +202,13 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
 
 # ── PDF Generation ────────────────────────────────────────────────────────────
 
+def _pdf_safe(text):
+    """Strip characters not supported by fpdf2 built-in fonts."""
+    if not text:
+        return ''
+    return text.encode('latin-1', errors='replace').decode('latin-1')
+
+
 def generate_pdf(invoice, settings):
     """Generate a PDF invoice. Returns bytes."""
     client = invoice.client
@@ -256,7 +263,7 @@ def generate_pdf(invoice, settings):
     pdf.set_font('Helvetica', 'B', 10)
     pdf.set_text_color(20, 20, 20)
     pdf.set_xy(15, 50)
-    pdf.cell(0, 6, client.name, ln=True)
+    pdf.cell(0, 6, _pdf_safe(client.name), ln=True)
     pdf.set_font('Helvetica', '', 9)
     pdf.set_text_color(80, 80, 80)
     if client.account_ref:
@@ -304,7 +311,7 @@ def generate_pdf(invoice, settings):
             pdf.add_page()
         pdf.set_fill_color(248, 250, 252) if fill else pdf.set_fill_color(255, 255, 255)
         pdf.set_x(15)
-        pdf.cell(90, 6, line.description[:55], fill=True)
+        pdf.cell(90, 6, _pdf_safe(line.description[:55]), fill=True)
         pdf.cell(25, 6, line.category, fill=True, align='C')
         pdf.cell(25, 6, f"£{line.unit_cost:,.2f}", fill=True, align='R')
         pdf.cell(25, 6, f"£{line.line_total:,.2f}", fill=True, align='R')
@@ -410,15 +417,15 @@ def generate_pdf(invoice, settings):
             date_str = c.call_date.strftime('%d/%m/%Y') if c.call_date else '-'
             time_str = c.description or '-'
             dest = c.destination or '-'
-            desc = (c.product_name or '').replace('Call - ', '')[:35]
+            desc = _pdf_safe((c.product_name or '').replace('Call - ', '').replace('Call — ', ''))[:35]
             dur = f"{c.call_duration // 60}m {c.call_duration % 60:02d}s" if c.call_duration else '-'
             cost = f"£{c.cost_amount:.4f}"
 
             pdf.set_x(15)
-            pdf.cell(22, 5, date_str, fill=True)
-            pdf.cell(18, 5, time_str, fill=True)
-            pdf.cell(35, 5, dest, fill=True)
-            pdf.cell(70, 5, desc, fill=True)
+            pdf.cell(22, 5, _pdf_safe(date_str), fill=True)
+            pdf.cell(18, 5, _pdf_safe(time_str), fill=True)
+            pdf.cell(35, 5, _pdf_safe(dest), fill=True)
+            pdf.cell(70, 5, _pdf_safe(desc), fill=True)
             pdf.cell(18, 5, dur, fill=True, align='R')
             pdf.cell(22, 5, cost, fill=True, align='R', ln=True)
             fill = not fill

@@ -713,6 +713,21 @@ def invoice_detail(id):
     inv = db.get_or_404(Invoice, id)
     return render_template('invoices/detail.html', invoice=inv, settings=get_settings())
 
+@app.route('/invoices/mark-all-sent', methods=['POST'])
+@login_required
+def invoices_mark_all_sent():
+    period = request.form.get('period', '')
+    q = Invoice.query.filter_by(status='draft')
+    if period:
+        q = q.filter_by(billing_period=period)
+    updated = 0
+    for inv in q.all():
+        inv.status = 'sent'
+        updated += 1
+    db.session.commit()
+    flash(f'Marked {updated} invoice(s) as sent.', 'success')
+    return redirect(url_for('invoices', period=period))
+
 @app.route('/invoices/<int:id>/mark-sent', methods=['POST'])
 @login_required
 def invoice_mark_sent(id):

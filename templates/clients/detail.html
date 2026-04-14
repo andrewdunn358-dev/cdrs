@@ -123,7 +123,7 @@
             <td class="text-muted small">{{ r.period }}</td>
             <td style="font-size:.85rem">{{ r.product[:55] }}</td>
             <td class="text-center"><span class="badge bg-light text-dark">{{ r.charge_type }}</span></td>
-            <td class="text-end text-muted small">£{{ "%.4f"|format(r.cost) }}</td>
+            <td class="text-end text-muted small">£{{ "%.2f"|format(r.cost) }}</td>
             <td class="text-end fw-medium">£{{ "%.2f"|format(r.sell) }}</td>
           </tr>
           {% endfor %}
@@ -138,7 +138,7 @@
     <div class="card mb-3">
       <div class="card-header bg-white d-flex align-items-center justify-content-between">
         <span class="fw-semibold">Itemised Calls</span>
-        <span class="text-muted small">{{ calls|length }} calls &nbsp;·&nbsp; Cost: £{{ "%.4f"|format(call_cost) }} &nbsp;·&nbsp; Sell: <strong class="text-dark">£{{ "%.2f"|format(call_sell) }}</strong></span>
+        <span class="text-muted small">{{ calls|length }} calls &nbsp;·&nbsp; Cost: £{{ "%.2f"|format(call_cost) }} &nbsp;·&nbsp; Sell: <strong class="text-dark">£{{ "%.2f"|format(call_sell) }}</strong></span>
       </div>
       <div class="table-responsive" style="max-height:500px;overflow-y:auto">
         <table class="table table-sm table-hover mb-0">
@@ -161,15 +161,15 @@
             <td class="font-monospace" style="font-size:.82rem">{{ c.destination or "—" }}</td>
             <td class="text-muted" style="font-size:.78rem">{{ (c.product_name or "—").replace("Call — ","")[:30] }}</td>
             <td class="text-end small">{{ fmt_duration(c.call_duration) }}</td>
-            <td class="text-end text-muted small">£{{ "%.4f"|format(c.cost_amount) }}</td>
-            <td class="text-end fw-medium small">£{{ "%.4f"|format(c.cost_amount * (1 + client.markup_pct/100)) }}</td>
+            <td class="text-end text-muted small">£{{ "%.2f"|format(c.cost_amount) }}</td>
+            <td class="text-end fw-medium small">£{{ "%.2f"|format(c.cost_amount * (1 + client.markup_pct/100)) }}</td>
           </tr>
           {% endfor %}
           </tbody>
           <tfoot class="table-light">
             <tr>
               <td colspan="5" class="fw-semibold small">Total calls</td>
-              <td class="text-end fw-semibold small">£{{ "%.4f"|format(call_cost) }}</td>
+              <td class="text-end fw-semibold small">£{{ "%.2f"|format(call_cost) }}</td>
               <td class="text-end fw-semibold">£{{ "%.2f"|format(call_sell) }}</td>
             </tr>
           </tfoot>

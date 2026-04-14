@@ -30,7 +30,7 @@
             {{ (c.call_duration // 60) }}m {{ "%02d"|format(c.call_duration % 60) }}s
           {% else %}—{% endif %}
         </td>
-        <td class="text-end">£{{ "%.4f"|format(c.cost_amount) }}</td>
+        <td class="text-end">£{{ "%.2f"|format(c.cost_amount) }}</td>
       </tr>
       {% endfor %}
       </tbody>

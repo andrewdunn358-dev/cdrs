@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Client History — {{ client.name }}{% endblock %}
+{% block page_title %}{{ client.name }} — Invoice History{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("reports") }}" class="btn btn-sm btn-outline-secondary">Back to Reports</a>
+  <a href="{{ url_for("client_detail", id=client.id) }}" class="btn btn-sm btn-outline-secondary">Client Page</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>Invoice</th><th>Period</th><th>Date</th><th class="text-end">Subtotal</th><th class="text-end">VAT</th><th class="text-end">Total</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for inv in invoices %}
+      <tr onclick="location.href='{{ url_for("invoice_detail", id=inv.id) }}'" style="cursor:pointer">
+        <td class="fw-medium">{{ inv.invoice_number }}</td>
+        <td>{{ inv.billing_period }}</td>
+        <td>{{ inv.invoice_date.strftime("%d %b %Y") }}</td>
+        <td class="text-end text-muted">£{{ "%.2f"|format(inv.subtotal) }}</td>
+        <td class="text-end text-muted">£{{ "%.2f"|format(inv.vat_amount) }}</td>
+        <td class="text-end fw-semibold">£{{ "%.2f"|format(inv.total) }}</td>
+        <td><span class="badge badge-{{ inv.status }}">{{ inv.status }}</span></td>
+        <td>
+          <a href="{{ url_for("invoice_pdf", id=inv.id) }}" class="btn btn-sm btn-outline-danger" target="_blank" onclick="event.stopPropagation()">
+            <i class="bi bi-filetype-pdf"></i>
+          </a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">No invoices found</td></tr>
+      {% endfor %}
+      </tbody>
+      {% if invoices %}
+      <tfoot class="table-light fw-semibold">
+        <tr>
+          <td colspan="5" class="text-end">Total ({{ invoices|length }} invoices)</td>
+          <td class="text-end">£{{ "%.2f"|format(invoices|sum(attribute="total")) }}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1135,7 +1135,6 @@ def report_pl_summary():
         period = period_list[0]
 
     FILE_CAT = {
-        'gamma_calls_sip': 'Calls', 'gamma_calls_div': 'Calls',
         'gamma_calls_ftc': 'Calls', 'gamma_calls_ibrs': 'Calls',
         'gamma_calls_nts': 'Calls', 'nasstar_cdr': 'Calls',
         'gamma_ipdc': 'SIP Trunks', 'gamma_bb': 'Broadband',
@@ -1146,8 +1145,7 @@ def report_pl_summary():
     charges = (RawCharge.query
                .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
                .filter(RawCharge.matched == True,
-                       RawCharge.archived == False,
-                       ImportBatch.billing_period == period)
+                       RawCharge.archived == False)
                .all())
 
     cats = defaultdict(lambda: {'cost': 0.0, 'sell': 0.0, 'count': 0})
@@ -1291,7 +1289,11 @@ def report_call_analysis():
     """Call volumes and costs by client and destination type."""
     from collections import defaultdict
     period = request.args.get('period', '')
+    # Get all periods that have call data
+    call_types = ['gamma_calls_sip','gamma_calls_div','gamma_calls_ftc',
+                  'gamma_calls_ibrs','gamma_calls_nts','nasstar_cdr']
     periods = (db.session.query(ImportBatch.billing_period)
+               .filter(ImportBatch.file_type.in_(call_types))
                .distinct().order_by(ImportBatch.billing_period.desc()).all())
     period_list = [p[0] for p in periods if p[0]]
     if not period and period_list:

@@ -59,7 +59,7 @@
       </div>
       <div class="col-lg-2 text-center">
         <div class="fw-bold {% if (row.total_cost or 0) == 0 %}text-muted{% endif %}">
-          £{{ "%.4f"|format(row.total_cost or 0) }}
+          £{{ "%.2f"|format(row.total_cost or 0) }}
         </div>
         <small class="text-muted">total cost</small>
       </div>

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Circuit Inventory{% endblock %}
+{% block page_title %}Circuit Inventory{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("reports") }}" class="btn btn-sm btn-outline-secondary">Back</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-between">
+    <span class="fw-semibold">{{ circuits|length }} circuits</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead><tr><th>Client</th><th>Circuit / Identifier</th><th>Type</th><th>Description</th><th class="text-end">Latest Cost</th><th>Product</th></tr></thead>
+      <tbody>
+      {% for c in circuits %}
+      <tr onclick="location.href='{{ url_for("client_detail", id=c.client.id) }}'" style="cursor:pointer">
+        <td class="fw-medium">{{ c.client.name if c.client else "—" }}</td>
+        <td class="font-monospace small">{{ c.circuit }}</td>
+        <td><span class="badge bg-light text-dark">{{ c.type }}</span></td>
+        <td class="text-muted small">{{ c.description or "—" }}</td>
+        <td class="text-end">{% if c.latest_cost is not none %}£{{ "%.2f"|format(c.latest_cost) }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+        <td class="text-muted small">{{ (c.latest_product or "—")[:40] }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

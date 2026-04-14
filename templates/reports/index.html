@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports{% endblock %}
+{% block content %}
+<div class="row g-3">
+  {% set reports = [
+    ("P&L Summary", "report_pl_summary", "bi-graph-up", "Revenue vs cost by product category per billing period", "success"),
+    ("Circuit Inventory", "report_circuit_inventory", "bi-diagram-3", "All active circuits and services across all clients", "primary"),
+    ("Aged Debtors", "report_aged_debtors", "bi-clock-history", "Outstanding invoices by age and status", "warning"),
+    ("Unbilled Charges", "report_unbilled", "bi-exclamation-circle", "Matched charges not yet invoiced", "danger"),
+    ("Call Analysis", "report_call_analysis", "bi-telephone-inbound", "Call volumes and costs by client and destination type", "info"),
+    ("Revenue Forecast", "report_revenue_forecast", "bi-calendar-plus", "Estimated next month revenue from recurring charges", "success"),
+    ("Audit Log", "report_audit_log", "bi-shield-check", "Invoice runs and system actions", "secondary"),
+  ] %}
+  {% for title, endpoint, icon, desc, color in reports %}
+  <div class="col-md-4">
+    <a href="{{ url_for(endpoint) }}" class="text-decoration-none">
+      <div class="card h-100 border-0 shadow-sm" style="transition:.15s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+        <div class="card-body">
+          <div class="d-flex align-items-center gap-3 mb-2">
+            <div class="rounded-circle d-flex align-items-center justify-content-center bg-{{ color }} bg-opacity-10" style="width:42px;height:42px">
+              <i class="bi {{ icon }} text-{{ color }} fs-5"></i>
+            </div>
+            <h6 class="mb-0 fw-semibold text-dark">{{ title }}</h6>
+          </div>
+          <p class="text-muted small mb-0">{{ desc }}</p>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

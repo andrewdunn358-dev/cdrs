@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Revenue Forecast{% endblock %}
+{% block page_title %}Revenue Forecast{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("reports") }}" class="btn btn-sm btn-outline-secondary">Back</a>
+{% endblock %}
+{% block content %}
+<div class="alert alert-info d-flex justify-content-between">
+  <span>Estimated next month: <strong>£{{ "%.2f"|format(total_sell) }}</strong> revenue | Cost: £{{ "%.2f"|format(total_cost) }} | Margin: £{{ "%.2f"|format(total_margin) }}</span>
+  <span class="text-muted small">Based on {{ period }} recurring charges</span>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead><tr><th>Client</th><th class="text-center">Lines</th><th class="text-end">Est. Cost</th><th class="text-end">Est. Sell</th><th class="text-end">Est. Margin</th></tr></thead>
+      <tbody>
+      {% for row in forecast %}
+      <tr onclick="location.href='{{ url_for("client_detail", id=row.client.id) }}'" style="cursor:pointer">
+        <td class="fw-medium">{{ row.client.name }}</td>
+        <td class="text-center text-muted">{{ row.charges|length }}</td>
+        <td class="text-end text-muted">£{{ "%.2f"|format(row.cost) }}</td>
+        <td class="text-end fw-semibold">£{{ "%.2f"|format(row.sell) }}</td>
+        <td class="text-end text-success">£{{ "%.2f"|format(row.margin) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot style="background:#1e3a5f;color:#fff" class="fw-bold">
+        <tr>
+          <td>TOTAL</td><td></td>
+          <td class="text-end">£{{ "%.2f"|format(total_cost) }}</td>
+          <td class="text-end">£{{ "%.2f"|format(total_sell) }}</td>
+          <td class="text-end">£{{ "%.2f"|format(total_margin) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}

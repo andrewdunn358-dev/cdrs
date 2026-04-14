@@ -209,24 +209,44 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
 def _ofcom_suppress(destination):
     """
     Ofcom rule C4.10 — suppress free-to-caller numbers from itemised bills.
+    Covers all numbers designated as free to caller in the National Telephone
+    Numbering Plan, plus emergency numbers 999 and 112.
     Returns True if the call should be suppressed.
     """
     if not destination:
         return False
     d = str(destination).strip().replace(' ', '')
+
     # Emergency services
     if d in ('999', '112', '911'):
         return True
-    # Police non-emergency
-    if d == '101':
+
+    # Police/non-emergency services
+    if d in ('101', '105', '111'):
         return True
-    # Free helplines 116xxx
+
+    # Free helplines 116xxx (Samaritans 116123, Missing Kids 116000 etc)
     if d.startswith('116'):
         return True
-    # Freephone 0800, 0808, 0500
-    if d.startswith('0800') or d.startswith('0808') or d.startswith('0500'):
+
+    # Freephone ranges — free to caller per National Numbering Plan
+    # 0800, 0808 — freephone
+    if d.startswith('0800') or d.startswith('0808'):
         return True
-    # Also suppress if product name indicates free/emergency
+
+    # 0500 — legacy freephone
+    if d.startswith('0500'):
+        return True
+
+    # 03 numbers are NOT free to caller — charged at standard rate, do not suppress
+
+    # Short codes that are free to caller
+    if d in ('150', '151', '152', '153', '154', '155',  # operator services
+             '100', '118',  # operator/directory
+             '123',  # speaking clock (not free but often queried)
+             ):
+        return True
+
     return False
 
 def _pdf_safe(text):

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Unbilled Charges{% endblock %}
+{% block page_title %}Unbilled Charges{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("reports") }}" class="btn btn-sm btn-outline-secondary">Back</a>
+{% endblock %}
+{% block content %}
+{% if rows %}
+<div class="alert alert-warning">Total unbilled cost: <strong>£{{ "%.2f"|format(total) }}</strong></div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>Client</th><th class="text-center">Charges</th><th class="text-end">Total Cost</th><th></th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+      <tr onclick="location.href='{{ url_for("client_detail", id=row.client.id) }}'" style="cursor:pointer">
+        <td class="fw-medium">{{ row.client.name if row.client else "Unknown" }}</td>
+        <td class="text-center">{{ row.count }}</td>
+        <td class="text-end">£{{ "%.2f"|format(row.cost) }}</td>
+        <td><a href="{{ url_for("client_detail", id=row.client.id) }}" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation()">View</a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card"><div class="card-body text-center text-muted py-5">No unbilled charges — all matched charges have been invoiced.</div></div>
+{% endif %}
+{% endblock %}

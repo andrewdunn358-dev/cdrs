@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Aged Debtors{% endblock %}
+{% block page_title %}Aged Debtors{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("reports") }}" class="btn btn-sm btn-outline-secondary">Back</a>
+{% endblock %}
+{% block content %}
+<div class="alert alert-info d-flex justify-content-between align-items-center">
+  <span>Total outstanding: <strong>£{{ "%.2f"|format(total_outstanding) }}</strong></span>
+  <span class="text-muted small">As of {{ today.strftime("%d %b %Y") }}</span>
+</div>
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>Invoice</th><th>Client</th><th>Period</th><th>Invoice Date</th><th>Due Date</th><th class="text-end">Total</th><th>Status</th><th class="text-end">Days Old</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+      <tr class="{% if row.overdue %}table-danger{% endif %}" onclick="location.href='{{ url_for("invoice_detail", id=row.invoice.id) }}'" style="cursor:pointer">
+        <td class="fw-medium">{{ row.invoice.invoice_number }}</td>
+        <td>{{ row.invoice.client.name }}</td>
+        <td>{{ row.invoice.billing_period }}</td>
+        <td>{{ row.invoice.invoice_date.strftime("%d %b %Y") }}</td>
+        <td>{{ row.invoice.due_date.strftime("%d %b %Y") if row.invoice.due_date else "—" }}</td>
+        <td class="text-end fw-semibold">£{{ "%.2f"|format(row.invoice.total) }}</td>
+        <td><span class="badge badge-{{ row.invoice.status }}">{{ row.invoice.status }}</span></td>
+        <td class="text-end {% if row.overdue %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ row.days_old }}d</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">No outstanding invoices</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1114,6 +1114,272 @@ def summary_export_excel():
 
 
 
+
+# ── Reports ───────────────────────────────────────────────────────────────────
+
+@app.route('/reports')
+@login_required
+def reports():
+    return render_template('reports/index.html')
+
+@app.route('/reports/pl-summary')
+@login_required
+def report_pl_summary():
+    """Monthly P&L — cost vs billed by product category."""
+    from collections import defaultdict
+    period = request.args.get('period', '')
+    periods = (db.session.query(ImportBatch.billing_period)
+               .distinct().order_by(ImportBatch.billing_period.desc()).all())
+    period_list = [p[0] for p in periods if p[0]]
+    if not period and period_list:
+        period = period_list[0]
+
+    FILE_CAT = {
+        'gamma_calls_sip': 'Calls', 'gamma_calls_div': 'Calls',
+        'gamma_calls_ftc': 'Calls', 'gamma_calls_ibrs': 'Calls',
+        'gamma_calls_nts': 'Calls', 'nasstar_cdr': 'Calls',
+        'gamma_ipdc': 'SIP Trunks', 'gamma_bb': 'Broadband',
+        'gamma_ces': 'Leased Lines', 'gamma_wlr': 'WLR',
+        'gamma_inb': 'Inbound',
+    }
+
+    charges = (RawCharge.query
+               .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
+               .filter(RawCharge.matched == True,
+                       RawCharge.archived == False,
+                       ImportBatch.billing_period == period)
+               .all())
+
+    cats = defaultdict(lambda: {'cost': 0.0, 'sell': 0.0, 'count': 0})
+    batch_cache = {}
+    for c in charges:
+        if c.batch_id not in batch_cache:
+            batch_cache[c.batch_id] = db.session.get(ImportBatch, c.batch_id)
+        b = batch_cache[c.batch_id]
+        cat = FILE_CAT.get(b.file_type if b else '', 'Other')
+        client = db.session.get(Client, c.client_id) if c.client_id else None
+        markup = 1 + (client.markup_pct / 100) if client else 1.3
+        net = c.cost_amount * c.quantity - c.credit_amount
+        cats[cat]['cost'] += net
+        cats[cat]['sell'] += net * markup
+        cats[cat]['count'] += 1
+
+    # Add recurring charges
+    from models import RecurringCharge
+    for rc in RecurringCharge.query.filter_by(active=True).all():
+        cats[rc.category]['cost'] += rc.unit_cost
+        cats[rc.category]['sell'] += rc.unit_price
+        cats[rc.category]['count'] += 1
+
+    rows = []
+    total_cost = total_sell = 0.0
+    for cat, vals in sorted(cats.items()):
+        margin = vals['sell'] - vals['cost']
+        margin_pct = (margin / vals['sell'] * 100) if vals['sell'] else 0
+        rows.append({'category': cat, 'cost': vals['cost'], 'sell': vals['sell'],
+                     'margin': margin, 'margin_pct': margin_pct, 'count': vals['count']})
+        total_cost += vals['cost']
+        total_sell += vals['sell']
+
+    total_margin = total_sell - total_cost
+    total_margin_pct = (total_margin / total_sell * 100) if total_sell else 0
+
+    return render_template('reports/pl_summary.html', period=period,
+        period_list=period_list, rows=rows, total_cost=total_cost,
+        total_sell=total_sell, total_margin=total_margin,
+        total_margin_pct=total_margin_pct)
+
+@app.route('/reports/circuit-inventory')
+@login_required
+def report_circuit_inventory():
+    """All active circuits across all clients."""
+    from models import ClientIdentifier
+    circuits = []
+    type_labels = {
+        'gamma_circuit': 'Broadband/WLR',
+        'gamma_ces_circuit': 'Leased Line',
+        'gamma_ipdc_endpoint': 'SIP Trunk',
+        'gamma_inbound': 'Inbound',
+        'gamma_cli': 'CLI/DDI',
+        'nasstar_account': 'Nasstar',
+    }
+    # Get all identifiers with their latest charge
+    idents = (ClientIdentifier.query
+              .filter_by(active=True)
+              .filter(ClientIdentifier.id_type.in_(
+                  ['gamma_circuit','gamma_ces_circuit','gamma_ipdc_endpoint','gamma_inbound','nasstar_account']))
+              .order_by(ClientIdentifier.client_id)
+              .all())
+
+    for ident in idents:
+        client = db.session.get(Client, ident.client_id)
+        # Find latest charge for this circuit
+        latest = (RawCharge.query
+                  .filter_by(source_key=ident.id_value, archived=False)
+                  .order_by(RawCharge.id.desc()).first())
+        circuits.append({
+            'client': client,
+            'circuit': ident.id_value,
+            'type': type_labels.get(ident.id_type, ident.id_type),
+            'description': ident.description or '',
+            'latest_cost': latest.cost_amount if latest else None,
+            'latest_product': latest.product_name if latest else None,
+        })
+
+    return render_template('reports/circuit_inventory.html', circuits=circuits)
+
+@app.route('/reports/client-history/<int:id>')
+@login_required
+def report_client_history(id):
+    """Invoice history for a single client over last 12 months."""
+    client = db.get_or_404(Client, id)
+    invoices = (Invoice.query
+                .filter_by(client_id=id)
+                .order_by(Invoice.billing_period.desc())
+                .limit(12).all())
+    return render_template('reports/client_history.html', client=client, invoices=invoices)
+
+@app.route('/reports/aged-debtors')
+@login_required
+def report_aged_debtors():
+    """Invoices by status with days outstanding."""
+    from datetime import date
+    today = date.today()
+    invoices = (Invoice.query
+                .filter(Invoice.status.in_(['draft','sent']))
+                .order_by(Invoice.due_date)
+                .all())
+    rows = []
+    for inv in invoices:
+        days = (today - inv.invoice_date).days if inv.invoice_date else 0
+        overdue = inv.due_date and inv.due_date < today and inv.status == 'sent'
+        rows.append({'invoice': inv, 'days_old': days, 'overdue': overdue})
+
+    total_outstanding = sum(i.total for i in invoices)
+    return render_template('reports/aged_debtors.html', rows=rows,
+                           total_outstanding=total_outstanding, today=today)
+
+@app.route('/reports/unbilled')
+@login_required
+def report_unbilled():
+    """Matched but uninvoiced charges — nothing gets missed."""
+    from collections import defaultdict
+    from models import IgnoredKey
+    ignored = set(i.source_key for i in IgnoredKey.query.all())
+
+    charges = (RawCharge.query
+               .filter_by(matched=True, invoiced=False, archived=False)
+               .all())
+
+    by_client = defaultdict(lambda: {'cost': 0.0, 'count': 0, 'client': None})
+    batch_cache = {}
+    for c in charges:
+        if c.batch_id not in batch_cache:
+            batch_cache[c.batch_id] = db.session.get(ImportBatch, c.batch_id)
+        client = db.session.get(Client, c.client_id) if c.client_id else None
+        by_client[c.client_id]['client'] = client
+        by_client[c.client_id]['cost'] += c.cost_amount * c.quantity
+        by_client[c.client_id]['count'] += 1
+
+    rows = sorted(by_client.values(), key=lambda x: x['client'].name if x['client'] else '')
+    total = sum(r['cost'] for r in rows)
+    return render_template('reports/unbilled.html', rows=rows, total=total)
+
+@app.route('/reports/call-analysis')
+@login_required
+def report_call_analysis():
+    """Call volumes and costs by client and destination type."""
+    from collections import defaultdict
+    period = request.args.get('period', '')
+    periods = (db.session.query(ImportBatch.billing_period)
+               .distinct().order_by(ImportBatch.billing_period.desc()).all())
+    period_list = [p[0] for p in periods if p[0]]
+    if not period and period_list:
+        period = period_list[0]
+
+    calls = (RawCharge.query
+             .join(ImportBatch, RawCharge.batch_id == ImportBatch.id)
+             .filter(RawCharge.charge_type == 'Call',
+                     RawCharge.matched == True,
+                     RawCharge.archived == False,
+                     ImportBatch.billing_period == period)
+             .all())
+
+    by_client = defaultdict(lambda: {'calls': 0, 'cost': 0.0, 'duration': 0, 'client': None})
+    dest_types = defaultdict(lambda: {'calls': 0, 'cost': 0.0})
+
+    for c in calls:
+        client = db.session.get(Client, c.client_id) if c.client_id else None
+        by_client[c.client_id]['client'] = client
+        by_client[c.client_id]['calls'] += 1
+        by_client[c.client_id]['cost'] += c.cost_amount
+        by_client[c.client_id]['duration'] += c.call_duration or 0
+        dest_type = (c.product_name or 'Unknown').replace('Call - ', '').replace('Call — ', '')
+        dest_types[dest_type]['calls'] += 1
+        dest_types[dest_type]['cost'] += c.cost_amount
+
+    client_rows = sorted(by_client.values(),
+        key=lambda x: -x['calls'])
+    dest_rows = sorted(dest_types.items(), key=lambda x: -x[1]['calls'])
+
+    return render_template('reports/call_analysis.html', period=period,
+        period_list=period_list, client_rows=client_rows, dest_rows=dest_rows)
+
+@app.route('/reports/audit-log')
+@login_required
+def report_audit_log():
+    """Recent invoice runs and actions."""
+    runs = InvoiceRun.query.order_by(InvoiceRun.created_at.desc()).limit(20).all()
+    return render_template('reports/audit_log.html', runs=runs)
+
+@app.route('/reports/revenue-forecast')
+@login_required
+def report_revenue_forecast():
+    """Estimate next month revenue from recurring charges and active circuits."""
+    from models import RecurringCharge
+    from collections import defaultdict
+
+    # Get most recent active charges per circuit
+    latest_period = (db.session.query(ImportBatch.billing_period)
+        .filter(ImportBatch.file_type.in_(['gamma_bb','gamma_ces','gamma_ipdc','gamma_wlr']))
+        .order_by(ImportBatch.billing_period.desc()).first())
+    period = latest_period[0] if latest_period else None
+
+    forecast = []
+    total_cost = total_sell = 0.0
+
+    clients = Client.query.filter_by(active=True).order_by(Client.name).all()
+    for client in clients:
+        markup = 1 + client.markup_pct / 100
+
+        # Active rental charges
+        charges = []
+        if period:
+            batches = (ImportBatch.query
+                .filter(ImportBatch.file_type.in_(['gamma_bb','gamma_ces','gamma_ipdc','gamma_wlr','gamma_inb']))
+                .filter(ImportBatch.billing_period == period).all())
+            for b in batches:
+                for c in RawCharge.query.filter_by(batch_id=b.id, client_id=client.id, archived=False).all():
+                    charges.append({'desc': c.product_name, 'cost': c.cost_amount * c.quantity})
+
+        # Recurring charges
+        for rc in RecurringCharge.query.filter_by(client_id=client.id, active=True).all():
+            charges.append({'desc': rc.description, 'cost': rc.unit_cost, 'sell_override': rc.unit_price})
+
+        if charges:
+            client_cost = sum(c['cost'] for c in charges)
+            client_sell = sum(c.get('sell_override', c['cost'] * markup) for c in charges)
+            forecast.append({'client': client, 'charges': charges,
+                           'cost': client_cost, 'sell': client_sell,
+                           'margin': client_sell - client_cost})
+            total_cost += client_cost
+            total_sell += client_sell
+
+    return render_template('reports/revenue_forecast.html', forecast=forecast,
+        total_cost=total_cost, total_sell=total_sell,
+        total_margin=total_sell - total_cost, period=period)
+
+
 # ── Price Lists ───────────────────────────────────────────────────────────────
 
 @app.route('/pricelists')

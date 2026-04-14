@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block page_title %}Audit Log{% endblock %}
+{% block topbar_actions %}
+  <a href="{{ url_for("reports") }}" class="btn btn-sm btn-outline-secondary">Back</a>
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white fw-semibold">Invoice Runs</div>
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead><tr><th>Period</th><th>Run At</th><th>By</th><th class="text-center">Invoices</th><th class="text-end">Total Value</th></tr></thead>
+      <tbody>
+      {% for run in runs %}
+      <tr>
+        <td class="fw-medium">{{ run.billing_period }}</td>
+        <td>{{ run.created_at.strftime("%d %b %Y %H:%M") }}</td>
+        <td class="text-muted">{{ run.created_by }}</td>
+        <td class="text-center">{{ run.invoices|length }}</td>
+        <td class="text-end">£{{ "%.2f"|format(run.invoices|sum(attribute="total")) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center text-muted py-4">No invoice runs yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

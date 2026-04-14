@@ -71,6 +71,9 @@ body{font-size:.875rem;background:#f0f2f5}
     <a href="{{ url_for('pricelists') }}" class="nav-link {% if 'pricelist' in request.endpoint %}active{% endif %}">
       <i class="bi bi-tag"></i> Price Lists
     </a>
+    <a href="{{ url_for('reports') }}" class="nav-link {% if 'report' in request.endpoint %}active{% endif %}">
+      <i class="bi bi-bar-chart"></i> Reports
+    </a>
     <div class="sidebar-section">System</div>
     <a href="{{ url_for('settings') }}" class="nav-link {% if request.endpoint=='settings' %}active{% endif %}">
       <i class="bi bi-gear"></i> Settings

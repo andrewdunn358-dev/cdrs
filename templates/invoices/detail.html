@@ -70,22 +70,29 @@
       </div>
       <div class="table-responsive">
         <table class="table mb-0">
-          <thead><tr><th>Description</th><th>Category</th><th class="text-end">Cost</th><th class="text-end">Price (ex VAT)</th><th class="text-end">VAT</th></tr></thead>
+          <thead><tr><th>Description</th><th>Category</th><th class="text-end">Cost</th><th class="text-end text-info" title="Internal only — 20% uplift applied to call charges">Call Uplift <span class="small">(20%)</span></th><th class="text-end">Price (ex VAT)</th><th class="text-end">VAT</th></tr></thead>
           <tbody>
           {% for line in invoice.lines|sort(attribute="sort_order") %}
           <tr>
             <td>{{ line.description }}</td>
             <td><span class="badge bg-light text-dark">{{ line.category }}</span></td>
             <td class="text-end text-muted small">£{{ "%.2f"|format(line.unit_cost) }}</td>
+            <td class="text-end small {% if line.category == 'Calls' and line.line_total > 0 %}text-info fw-medium{% else %}text-muted{% endif %}">
+              {% if line.category == 'Calls' and line.line_total > 0 %}
+                +£{{ "%.2f"|format(line.line_total - (line.line_total / 1.20)) }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
             <td class="text-end fw-medium">£{{ "%.2f"|format(line.line_total) }}</td>
             <td class="text-end text-muted">{{ line.vat_rate }}%</td>
           </tr>
           {% endfor %}
           </tbody>
           <tfoot class="table-light">
-            <tr><td colspan="3" class="text-end fw-medium">Subtotal (ex VAT)</td><td class="text-end">£{{ "%.2f"|format(invoice.subtotal) }}</td><td></td></tr>
-            <tr><td colspan="3" class="text-end fw-medium">VAT ({{ settings.default_vat_rate }}%)</td><td class="text-end">£{{ "%.2f"|format(invoice.vat_amount) }}</td><td></td></tr>
-            <tr><td colspan="3" class="text-end fw-bold fs-6">Total (inc VAT)</td><td class="text-end fw-bold fs-6">£{{ "%.2f"|format(invoice.total) }}</td><td></td></tr>
+            <tr><td colspan="4" class="text-end fw-medium">Subtotal (ex VAT)</td><td class="text-end">£{{ "%.2f"|format(invoice.subtotal) }}</td><td></td></tr>
+            <tr><td colspan="4" class="text-end fw-medium">VAT ({{ settings.default_vat_rate }}%)</td><td class="text-end">£{{ "%.2f"|format(invoice.vat_amount) }}</td><td></td></tr>
+            <tr><td colspan="4" class="text-end fw-bold fs-6">Total (inc VAT)</td><td class="text-end fw-bold fs-6">£{{ "%.2f"|format(invoice.total) }}</td><td></td></tr>
           </tfoot>
         </table>
       </div>

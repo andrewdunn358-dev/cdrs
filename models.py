@@ -153,6 +153,7 @@ class CompanySettings(db.Model):
     next_invoice_number = db.Column(db.Integer, default=1001)
     default_markup_pct = db.Column(db.Float, default=30.0)
     default_vat_rate = db.Column(db.Float, default=20.0)
+    call_uplift_pct = db.Column(db.Float, default=20.0)   # Internal uplift applied to Call Charges only
     payment_terms_days = db.Column(db.Integer, default=30)
 
 class RecurringCharge(db.Model):

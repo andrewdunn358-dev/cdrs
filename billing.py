@@ -9,9 +9,6 @@ import io
 
 CATEGORY_ORDER = ['Calls', 'SIP Trunks', 'Broadband', 'Leased Lines', 'WLR', 'Inbound', 'Other']
 
-# Additional 20% uplift applied to Call Charges ONLY (not Broadband, Leased Lines, etc.)
-CALL_CHARGE_UPLIFT = 1.20
-
 FILE_TYPE_TO_CATEGORY = {
     'gamma_calls_sip':   'Calls',
     'gamma_calls_div':   'Calls',
@@ -46,6 +43,8 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
         # Use per-client markup, fall back to global default
         markup = 1.0 + (client.markup_pct / 100.0)
         vat = settings.default_vat_rate / 100.0
+        # Internal uplift applied to Call Charges ONLY (configurable in Settings)
+        call_uplift = 1.0 + ((settings.call_uplift_pct or 0) / 100.0)
 
         groups = defaultdict(lambda: {'cost': 0.0, 'qty': 0, 'charge_ids': []})
         for c in charges:
@@ -68,8 +67,8 @@ def generate_invoices(billing_period, client_ids, session, run_id, created_by, s
 
         # Add single call charges line if there are any calls
         if call_charge_ids:
-            # 20% uplift applied to Call Charges only (on top of client markup)
-            call_sell = round(call_total_cost * markup * CALL_CHARGE_UPLIFT, 2)
+            # Configurable uplift applied to Call Charges only (on top of client markup)
+            call_sell = round(call_total_cost * markup * call_uplift, 2)
             lines.append({
                 'category': 'Calls',
                 'description': 'Call Charges',

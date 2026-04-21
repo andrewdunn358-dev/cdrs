@@ -70,16 +70,18 @@
       </div>
       <div class="table-responsive">
         <table class="table mb-0">
-          <thead><tr><th>Description</th><th>Category</th><th class="text-end">Cost</th><th class="text-end text-info" title="Internal only — 20% uplift applied to call charges">Call Uplift <span class="small">(20%)</span></th><th class="text-end">Price (ex VAT)</th><th class="text-end">VAT</th></tr></thead>
+          <thead><tr><th>Description</th><th>Category</th><th class="text-end">Cost</th><th class="text-end text-info" title="Internal only — uplift applied to call charges">Call Uplift <span class="small">({{ (settings.call_uplift_pct if settings.call_uplift_pct is not none else 20)|round(1) }}%)</span></th><th class="text-end">Price (ex VAT)</th><th class="text-end">VAT</th></tr></thead>
           <tbody>
+          {% set uplift_pct = settings.call_uplift_pct if settings.call_uplift_pct is not none else 20 %}
+          {% set uplift_factor = 1 + (uplift_pct / 100) %}
           {% for line in invoice.lines|sort(attribute="sort_order") %}
           <tr>
             <td>{{ line.description }}</td>
             <td><span class="badge bg-light text-dark">{{ line.category }}</span></td>
             <td class="text-end text-muted small">£{{ "%.2f"|format(line.unit_cost) }}</td>
-            <td class="text-end small {% if line.category == 'Calls' and line.line_total > 0 %}text-info fw-medium{% else %}text-muted{% endif %}">
-              {% if line.category == 'Calls' and line.line_total > 0 %}
-                +£{{ "%.2f"|format(line.line_total - (line.line_total / 1.20)) }}
+            <td class="text-end small {% if line.category == 'Calls' and line.line_total > 0 and uplift_pct > 0 %}text-info fw-medium{% else %}text-muted{% endif %}">
+              {% if line.category == 'Calls' and line.line_total > 0 and uplift_pct > 0 %}
+                +£{{ "%.2f"|format(line.line_total - (line.line_total / uplift_factor)) }}
               {% else %}
                 —
               {% endif %}

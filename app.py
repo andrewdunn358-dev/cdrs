@@ -807,6 +807,7 @@ def settings():
             setattr(s, field, request.form.get(field, ''))
         s.default_markup_pct = float(request.form.get('default_markup_pct', 30))
         s.default_vat_rate = float(request.form.get('default_vat_rate', 20))
+        s.call_uplift_pct = float(request.form.get('call_uplift_pct', 20))
         s.payment_terms_days = int(request.form.get('payment_terms_days', 30))
         db.session.commit()
         flash('Settings saved.', 'success')
@@ -1552,6 +1553,14 @@ def api_unmatched_keys():
 def create_tables():
     with app.app_context():
         db.create_all()
+        # Lightweight idempotent migration: add call_uplift_pct column for existing DBs
+        try:
+            db.session.execute(db.text(
+                "ALTER TABLE company_settings ADD COLUMN call_uplift_pct FLOAT DEFAULT 20.0"
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()  # column already exists
         # Create default admin if no users exist
         if not User.query.first():
             admin = User(username='admin', email='admin@synthesisit.co.uk', role='admin')
@@ -1564,6 +1573,7 @@ def create_tables():
                 next_invoice_number=1001,
                 default_markup_pct=30.0,
                 default_vat_rate=20.0,
+                call_uplift_pct=20.0,
                 payment_terms_days=30,
             )
             db.session.add(s)

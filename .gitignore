@@ -26,3 +26,12 @@ backups/
 # OS
 .DS_Store
 Thumbs.db
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials

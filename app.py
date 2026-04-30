@@ -62,6 +62,35 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        new_pw = (request.form.get('new_password') or '').strip()
+        confirm = (request.form.get('confirm_password') or '').strip()
+
+        if not email or not new_pw:
+            flash('Please fill in all fields.', 'danger')
+            return render_template('forgot_password.html')
+        if len(new_pw) < 8:
+            flash('Password must be at least 8 characters.', 'danger')
+            return render_template('forgot_password.html')
+        if new_pw != confirm:
+            flash('Passwords do not match.', 'danger')
+            return render_template('forgot_password.html')
+
+        user = User.query.filter(db.func.lower(User.email) == email).first()
+        if user:
+            user.set_password(new_pw)
+            db.session.commit()
+        # Generic response — don't leak whether email exists
+        flash('If that email is registered, the password has been reset. You can now sign in.', 'success')
+        return redirect(url_for('login'))
+    return render_template('forgot_password.html')
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 @app.route('/')

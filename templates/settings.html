@@ -43,9 +43,15 @@
             <div class="fw-medium">{{ u.username }}</div>
             <small class="text-muted">{{ u.email }} · {{ u.role }}</small>
           </div>
+          {% if current_user.role == "admin" %}
+          <form method="POST" action="{{ url_for("user_reset_password", id=u.id) }}" class="d-inline me-1" onsubmit="return promptNewPassword(this, '{{ u.username }}')">
+            <input type="hidden" name="new_password" value="">
+            <button type="submit" class="btn btn-sm btn-link text-secondary" title="Reset password"><i class="bi bi-key"></i></button>
+          </form>
+          {% endif %}
           {% if current_user.role == "admin" and u.id != current_user.id %}
           <form method="POST" action="{{ url_for("user_delete", id=u.id) }}" onsubmit="return confirm("Delete user?")">
-            <button class="btn btn-sm btn-link text-danger"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-sm btn-link text-danger" title="Delete user"><i class="bi bi-trash"></i></button>
           </form>
           {% endif %}
         </div>
@@ -70,4 +76,18 @@
     </div>
   </div>
 </div>
+<script>
+function promptNewPassword(form, username) {
+  var pw = window.prompt("Enter new password for " + username + " (min 8 characters):");
+  if (pw === null) return false;
+  pw = pw.trim();
+  if (pw.length < 8) {
+    alert("Password must be at least 8 characters.");
+    return false;
+  }
+  if (!window.confirm("Reset password for " + username + "? They will need this new password to log in.")) return false;
+  form.querySelector('input[name="new_password"]').value = pw;
+  return true;
+}
+</script>
 {% endblock %}

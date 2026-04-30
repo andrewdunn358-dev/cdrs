@@ -842,6 +842,22 @@ def user_delete(id):
     return redirect(url_for('settings'))
 
 
+@app.route('/settings/users/<int:id>/reset-password', methods=['POST'])
+@login_required
+def user_reset_password(id):
+    if current_user.role != 'admin':
+        abort(403)
+    u = db.get_or_404(User, id)
+    new_pw = (request.form.get('new_password') or '').strip()
+    if len(new_pw) < 8:
+        flash('Password must be at least 8 characters.', 'danger')
+        return redirect(url_for('settings'))
+    u.set_password(new_pw)
+    db.session.commit()
+    flash(f'Password reset for {u.username}. New password: {new_pw}', 'success')
+    return redirect(url_for('settings'))
+
+
 
 # ── Billing Summary ───────────────────────────────────────────────────────────
 
